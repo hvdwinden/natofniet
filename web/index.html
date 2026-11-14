@@ -422,10 +422,15 @@ map.on("click", e => setPosition(e.latlng.lat, e.latlng.lng, null, false, true))
 // Waarde 0-255 → mm/u = 10^((waarde-109)/32). Tijden zijn Nederlandse tijd (HH:MM).
 const toMm = v => v <= 0 ? 0 : Math.pow(10, (v - 109) / 32);
 
+// Volgnummers: alleen het antwoord op de laatst gestarte aanvraag telt (zie loadRadar)
+let nowcastLoadId = 0, weatherLoadId = 0;
+
 async function loadNowcast() {
+  const id = ++nowcastLoadId;
   const url = `https://gpsgadget.buienradar.nl/data/raintext?lat=${pos.lat.toFixed(2)}&lon=${pos.lon.toFixed(2)}`;
   try {
     const txt = await (await fetch(url, { cache: "no-store" })).text();
+    if (id !== nowcastLoadId) return;
     const now = new Date();
     let prev = null;
     nowcast = txt.trim().split(/\r?\n/).map(line => {
@@ -438,7 +443,7 @@ async function loadNowcast() {
       return { date: d, mm: toMm(parseInt(v, 10)) };
     });
     if (!nowcast.length) throw new Error("leeg");
-  } catch (e) { nowcast = []; }
+  } catch (e) { if (id === nowcastLoadId) nowcast = []; }
 }
 
 // ---------- Data: Open-Meteo (actueel, 24 uur, 7 dagen) ----------
@@ -448,8 +453,10 @@ async function loadWeather() {
     `&hourly=precipitation,precipitation_probability,temperature_2m,weather_code,is_day,wind_speed_10m,wind_direction_10m&forecast_hours=25` +
     `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_direction_10m_dominant` +
     `&forecast_days=14&timezone=auto&wind_speed_unit=ms`;
+  const id = ++weatherLoadId;
   try {
     const j = await (await fetch(url, { cache: "no-store" })).json();
+    if (id !== weatherLoadId) return;
     const c = j.current;
     current = { temp: c.temperature_2m, wind: c.wind_speed_10m, dir: c.wind_direction_10m };
     hourly = j.hourly.time.map((t, i) => ({
@@ -464,7 +471,7 @@ async function loadWeather() {
       wind: d.wind_speed_10m_max[i], dir: d.wind_direction_10m_dominant[i]
     }));
   } catch (e) {
-    hourly = []; daily = []; current = null;
+    if (id === weatherLoadId) { hourly = []; daily = []; current = null; }
   }
 }
 function beaufort(ms) {
@@ -888,7 +895,8 @@ const BR_BOUNDS = [[49.5, 0], [54.8, 10]];
 
 async function loadBuienradarFrames() {
   const q = `${BR_SIZE}&history=0&forecast=24&skip=0&renderText=False&renderBranding=False&renderBackground=False&extension=png`;
-  const meta = await (await fetch(`https://image.buienradar.nl/2.0/metadata/sprite/RadarMapRainWebmercatorNL?${q}`, { cache: "no-store" })).json();
+  // Unieke parameter zodat geen tussenliggende cache een oud antwoord geeft
+  const meta = await (await fetch(`https://image.buienradar.nl/2.0/metadata/sprite/RadarMapRainWebmercatorNL?${q}&_=${Date.now()}`, { cache: "no-store" })).json();
   if (!meta.times || !meta.times.length) throw new Error("geen beelden");
   // Tijden zijn in UTC; meta.timestamp is het laatste gemeten beeld
   const last = Date.parse(meta.timestamp + "Z");
@@ -912,13 +920,23 @@ async function loadRainViewerFrames() {
   };
 }
 
+// Beelden die niet tot nu reiken zijn verouderd (bv. een antwoord van uren geleden)
+function framesAreFresh(src) {
+  return src.list.length && src.list.at(-1).time * 1000 > Date.now() - 20 * 60 * 1000;
+}
+
+let radarLoadId = 0;
 async function loadRadar() {
-  let src;
-  try { src = await loadBuienradarFrames(); }
-  catch (e) {
-    try { src = await loadRainViewerFrames(); }
-    catch (e2) { $("frameTime").textContent = "geen radar"; return; }
+  // Alleen de laatst gestarte laadactie mag de kaart bijwerken. Een oudere die nog liep
+  // (bv. bevroren toen de app op de achtergrond ging) wordt genegeerd.
+  const id = ++radarLoadId;
+  let src = null;
+  try { src = await loadBuienradarFrames(); if (!framesAreFresh(src)) src = null; } catch (e) { src = null; }
+  if (!src) {
+    try { src = await loadRainViewerFrames(); if (!framesAreFresh(src)) src = null; } catch (e2) { src = null; }
   }
+  if (id !== radarLoadId) return;
+  if (!src) { $("frameTime").textContent = "geen radar"; return; }
   layers.forEach(l => map.removeLayer(l));
   frames = src.list;
   nowIndex = src.nowIndex;
