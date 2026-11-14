@@ -72,13 +72,39 @@ public class PollenTest {
 
     @Test
     public void juisteKleenexSitePerLand() {
-        assertEquals("www.kleenex.nl", Pollen.sites(52.09, 5.12)[0]);     // Utrecht
-        assertEquals("www.kleenex.nl", Pollen.sites(51.05, 3.72)[0]);     // Gent
-        assertEquals("www.kleenex.co.uk", Pollen.sites(51.5, -0.12)[0]);  // Londen
-        assertEquals("www.kleenex.co.uk", Pollen.sites(54.6, -5.93)[0]);  // Belfast
-        assertEquals("www.kleenex.fr", Pollen.sites(45.76, 4.84)[0]);     // Lyon
-        assertEquals("www.kleenex.fr", Pollen.sites(48.85, 2.35)[0]);     // Parijs
-        assertEquals(0, Pollen.sites(52.52, 13.4).length);                // Berlijn: geen Kleenex
+        assertEquals("www.kleenex.nl", Pollen.siteFor("nl"));
+        assertEquals("www.kleenex.co.uk", Pollen.siteFor("gb"));
+        assertEquals("www.kleenex.fr", Pollen.siteFor("fr"));
+        assertEquals("www.it.scottex.com", Pollen.siteFor("it"));
+        assertEquals("www.kleenex.com", Pollen.siteFor("us"));
+        assertEquals("www.kleenex.com.au", Pollen.siteFor("au"));
+        assertNull(Pollen.siteFor("ca"));   // Canada: de Amerikaanse site kent alleen Toronto in Ohio
+        assertNull(Pollen.siteFor("de"));
+    }
+
+    @Test
+    public void afstandEnCoordinatenUitPagina() {
+        double[] p = Pollen.latLon("<input id=\"pollenlat\" class=\"pollen-lat\" type=\"hidden\" value=\"-35.3065\" />"
+                + "<input id=\"pollenlng\" class=\"pollen-lng\" type=\"hidden\" value=\"149.12\" />");
+        assertEquals(-35.3065, p[0], 1e-9);
+        assertTrue(Pollen.km(-34.93, 138.6, p[0], p[1]) > 900);   // Adelaide ↔ Canberra
+        assertTrue(Pollen.km(52.09, 5.12, 52.0919, 5.1229) < 1);
+    }
+
+    @Test
+    public void scottexItalie() throws Exception {
+        String json = new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
+                getClass().getClassLoader().getResource("scottex-milano.json").toURI())), "UTF-8");
+        JSONObject p = Pollen.parseScottex(json, "Milano");
+        assertEquals("Milan", p.getString("place"));
+        assertEquals(45.4685, p.getDouble("lat"), 1e-3);
+        org.json.JSONArray days = p.getJSONArray("days");
+        assertEquals(5, days.length());
+        JSONObject trees = days.getJSONObject(0).getJSONObject("trees");
+        assertEquals("low", trees.getString("level"));
+        assertEquals(5, trees.getInt("value"));
+        assertEquals("Cipres", trees.getJSONArray("details").getJSONObject(0).getString("name"));
+        assertNull(Pollen.parseScottex("{\"html\":\"\",\"city\":null}", "Xyz"));
     }
 
     @Test
