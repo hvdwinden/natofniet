@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nat of niet? – Radar zonder grafiek</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Space+Grotesk:wght@400;500;700&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e6df; color: #1b1b1b; font: 15px/1.5 Inter, system-ui, sans-serif; }
+  .page { max-width: 1240px; margin: 0 auto; padding: 36px 20px 60px; }
+  h1 { font: 800 34px/1.1 "Bricolage Grotesque", sans-serif; margin: 0 0 6px; }
+  .lead { color: #555; max-width: 780px; margin: 0 0 30px; }
+  .dirs { display: grid; grid-template-columns: repeat(auto-fit, minmax(370px, 1fr)); gap: 26px; }
+  .dir { background: #fff; border-radius: 22px; padding: 22px 20px 24px; }
+  .dir h2 { margin: 0; font: 800 24px/1.1 "Bricolage Grotesque", sans-serif; }
+  .dir .tag { color: #666; margin: 4px 0 18px; font-size: 14px; }
+  .dir ul { margin: 22px 0 0; padding-left: 18px; font-size: 14px; color: #333; }
+  .dir li { margin: 5px 0; }
+  .phone { width: 340px; height: 700px; margin: 0 auto; border-radius: 38px; overflow: hidden; position: relative;
+    box-shadow: 0 0 0 9px #111, 0 18px 40px rgba(0,0,0,.25); }
+  .map { position: absolute; inset: 0; }
+  .leaflet-control-attribution { font-size: 8px !important; }
+  .leaflet-tile-container img { width: 256.6px !important; height: 256.6px !important; }   /* geen naden tussen tegels */
+  .rain { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 450; }
+  .ui { position: absolute; z-index: 500; }
+  .sb { top: 0; left: 0; right: 0; height: 30px; display: flex; justify-content: space-between; align-items: center; padding: 0 22px; font: 600 12px Inter, sans-serif; }
+  .top { top: 30px; left: 0; right: 0; display: flex; align-items: center; gap: 8px; padding: 6px 16px; font-weight: 700; font-size: 17px; }
+  .top .sp { flex: 1; }
+  nav.ui { bottom: 0; left: 0; right: 0; display: flex; justify-content: space-around; padding: 10px 0 18px; font-size: 11px; font-weight: 600; }
+  .note { font-size: 12px; color: #777; margin-top: 18px; text-align: center; }
+
+  /* ===== A: Helder ===== */
+  .A { background: #F5F2EA; color: #14213D; font-family: Inter, sans-serif; }
+  .A .map .basemap { filter: grayscale(.5) brightness(1.04) contrast(.92) sepia(.12); }
+  .A .sb, .A .top { background: linear-gradient(#F5F2EAee, #F5F2EA00); }
+  .A .top { font-family: "Bricolage Grotesque"; font-size: 19px; }
+  .A .card { top: 84px; left: 14px; right: 14px; background: #14213D; color: #fff; border-radius: 20px; padding: 13px 16px;
+    display: flex; gap: 12px; align-items: center; box-shadow: 0 8px 24px rgba(20,33,61,.25); }
+  .A .card .big { font: 800 21px/1.1 "Bricolage Grotesque"; }
+  .A .card small { display: block; color: #B9C3D9; font-size: 12.5px; margin-top: 3px; }
+  .A .card .arrow { width: 40px; height: 40px; border-radius: 50%; background: #FFB703; color: #14213D; display: grid; place-items: center; font-size: 20px; flex-shrink: 0; }
+  .A .scrub { bottom: 74px; left: 14px; right: 14px; background: #fff; border-radius: 22px; padding: 10px 14px 10px 10px; display: flex; gap: 10px; align-items: center; box-shadow: 0 6px 20px rgba(20,33,61,.15); }
+  .A .play { width: 40px; height: 40px; border-radius: 50%; background: #2F6BFF; color: #fff; display: grid; place-items: center; font-size: 14px; flex-shrink: 0; }
+  .A .trackwrap { flex: 1; }
+  .A .tlabels { display: flex; justify-content: space-between; font-size: 10.5px; color: #8a93a6; margin-bottom: 5px; }
+  .A .tlabels b { color: #2F6BFF; }
+  .A .track { position: relative; height: 8px; border-radius: 4px; background: #EFECE4; overflow: visible; }
+  .A .wetseg { position: absolute; top: 0; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #A9C3FF, #2F6BFF, #1C3FBF, #2F6BFF, #A9C3FF); }
+  .A .knob { position: absolute; top: -6px; width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 3px solid #14213D; transform: translateX(-50%); }
+  .A nav { background: #fff; color: #8a93a6; } .A nav b { color: #14213D; }
+
+  /* ===== B: Nacht ===== */
+  .B { background: #0B161A; color: #E6F4F1; font-family: "Space Grotesk", sans-serif; }
+  .B .map .basemap { filter: grayscale(1) invert(1) brightness(.62) contrast(1.15) sepia(.35) hue-rotate(130deg); }
+  .B .sb, .B .top { background: linear-gradient(#0B161Aee, #0B161A00); color: #E6F4F1; }
+  .B .pill { top: 84px; left: 50%; transform: translateX(-50%); background: rgba(11,22,26,.88); border: 1px solid #23434b; border-radius: 999px;
+    padding: 8px 16px; font-size: 15px; white-space: nowrap; }
+  .B .pill span { color: #5EEAD4; font-weight: 700; }
+  .B .dialbox { bottom: 82px; right: 14px; width: 150px; height: 150px; border-radius: 50%; background: rgba(11,22,26,.9); border: 1px solid #23434b;
+    box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+  .B .hint { bottom: 96px; left: 16px; font-size: 12px; color: #9fb8b3; background: rgba(11,22,26,.85); border-radius: 10px; padding: 6px 10px; max-width: 160px; line-height: 1.35; }
+  .B nav { left: 50%; right: auto; transform: translateX(-50%); bottom: 16px; display: flex; gap: 6px; background: #13262b; border: 1px solid #23434b; border-radius: 999px; padding: 6px; }
+  .B nav span { padding: 8px 14px; border-radius: 999px; font-size: 13px; color: #9fb8b3; }
+  .B nav span.on { background: #5EEAD4; color: #08201c; font-weight: 700; }
+
+  /* ===== C: Hollandse lucht ===== */
+  .C { background: #B7C1CE; color: #1d2533; font-family: Inter, sans-serif; }
+  .C .map .basemap { filter: grayscale(.85) brightness(1.05) contrast(.85); }
+  .C .sb, .C .top { background: linear-gradient(#8C9AAEee, #8C9AAE00); }
+  .C .story { bottom: 74px; left: 14px; right: 14px; background: rgba(255,255,255,.72); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,.7);
+    border-radius: 22px; padding: 14px 16px; }
+  .C .story p { margin: 0; font: 500 19px/1.3 Fraunces, serif; }
+  .C .story p i { color: #2b3f8f; }
+  .C .story .row { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; color: #3c4658; }
+  .C .story .chip { background: #2B3F8F; color: #fff; border-radius: 999px; padding: 5px 12px; font-weight: 600; font-size: 13px; }
+  .C .story .ghost { border: 1px solid rgba(29,37,51,.25); border-radius: 999px; padding: 4px 10px; }
+  .C nav { background: rgba(255,255,255,.6); backdrop-filter: blur(8px); color: #4b5568; } .C nav b { color: #1d2533; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Radar zonder grafiek</h1>
+  <p class="lead">Drie manieren om het radarscherm een eigen gezicht te geven. Gemeenschappelijk: <b>de kaart vult het scherm, de tijdlijngrafiek en de waardenbalk verdwijnen</b>,
+    en je eigen plek (de halve druppel) laat zien of de bui jou raakt. Voorbeeldsituatie: Voorschoten, 17:20, een bui bij Den Haag trekt naar het noordoosten en is er om 17:45.
+    De regen op deze kaarten is getekend; de kaarten zelf zijn echt (OpenStreetMap).</p>
+
+  <div class="dirs">
+    <section class="dir">
+      <h2>1 · Druppel en schuif</h2>
+      <div class="tag">Thema Helder. Het meest direct: antwoord bovenaan, een dunne schuif onderaan.</div>
+      <div class="phone A">
+        <div class="map" id="mapA"></div>
+        <svg class="rain" id="rainA"></svg>
+        <div class="ui sb"><span>17:20</span><span>●●● 5G ▮</span></div>
+        <div class="ui top"><span>◐ Voorschoten ▾</span><span class="sp"></span><span>↻ &nbsp;⚙︎</span></div>
+        <div class="ui card"><div class="arrow">↗</div><div><div class="big">Bui over 25 min</div><small>Trekt vanuit Den Haag naar je toe · om 18:25 weer droog</small></div></div>
+        <div class="ui scrub">
+          <div class="play">▶</div>
+          <div class="trackwrap">
+            <div class="tlabels"><span>nu</span><b>17:45 · verwacht</b><span>19:20</span></div>
+            <div class="track"><div class="wetseg" style="left:21%;width:33%"></div><div class="knob" style="left:21%"></div></div>
+          </div>
+        </div>
+        <nav class="ui"><span>Nu</span><b>● Radar</b><span>Week</span></nav>
+      </div>
+      <ul>
+        <li><b>Kaartje bovenaan</b> met de conclusie en de richting waar de bui vandaan komt (pijl).</li>
+        <li><b>Je plek is de halve druppel</b>: hij loopt vol als de bui jou op dat moment raakt (hier: 17:45, licht gevuld).</li>
+        <li><b>Schuif in plaats van grafiek</b>: één dunne balk; het blauwe stuk is wanneer het bij jou regent. Sleep de knop of druk op afspelen.</li>
+      </ul>
+    </section>
+
+    <section class="dir">
+      <h2>2 · Kaart met regenklok</h2>
+      <div class="tag">Thema Nacht. De regenklok uit het Nu-scherm wordt de draaiknop van de radar.</div>
+      <div class="phone B">
+        <div class="map" id="mapB"></div>
+        <svg class="rain" id="rainB"></svg>
+        <div class="ui sb"><span>17:20</span><span>●●● 5G ▮</span></div>
+        <div class="ui top"><span>◐ Voorschoten</span><span class="sp"></span><span>⌕ &nbsp;⚙︎</span></div>
+        <div class="ui pill">Nog <span>25 min</span> droog</div>
+        <div class="ui hint">Draai aan de klok om door de radar te gaan. Tik in het midden om af te spelen.</div>
+        <svg class="ui dialbox" id="dialB" viewBox="0 0 150 150"></svg>
+        <nav class="ui"><span>Nu</span><span class="on">Radar</span><span>Week</span></nav>
+      </div>
+      <ul>
+        <li><b>De klok is de tijdschuif</b>: de wijzer is het getoonde radarbeeld, de mint boog is wanneer het bij jou regent. Herkenbaar en van jou.</li>
+        <li><b>Regen in eigen kleuren</b>: de radarbeelden worden herkleurd naar mint/geel/koraal in plaats van Buienradar-blauw.</li>
+        <li>Donkere kaart, één zwevende regel tekst. Zwevende navigatie onderaan.</li>
+      </ul>
+    </section>
+
+    <section class="dir">
+      <h2>3 · Het pad van de bui</h2>
+      <div class="tag">Thema Hollandse lucht. De kaart vertelt het verhaal: waar de bui is, waar hij heen gaat en wanneer.</div>
+      <div class="phone C">
+        <div class="map" id="mapC"></div>
+        <svg class="rain" id="rainC"></svg>
+        <div class="ui sb"><span>17:20</span><span>●●● 5G ▮</span></div>
+        <div class="ui top"><span>Voorschoten ▾</span><span class="sp"></span><span>⚙︎</span></div>
+        <div class="ui story">
+          <p>De bui boven Den Haag trekt naar je toe. Om <i>17:45</i> begint het te miezeren, om 18:25 is hij voorbij.</p>
+          <div class="row"><span class="chip">▶ Afspelen</span><span class="ghost">nu</span><span class="ghost">+30 min</span><span class="ghost">+1 uur</span></div>
+        </div>
+        <nav class="ui"><b>Vandaag</b><span>Kaart</span><span>Week</span></nav>
+      </div>
+      <ul>
+        <li><b>Stippellijn met tijden</b> laat het pad van de bui zien, zoals een treinroute: 17:30 · 17:45 · 18:00.</li>
+        <li><b>Geen tijdbalk</b>: een paar knoppen (nu, +30 min, +1 uur) en afspelen. Het verhaal staat in gewone taal.</li>
+        <li>Het meest eigen en het minst "weerapp", maar de richting moet de app zelf uitrekenen uit de radarbeelden.</li>
+      </ul>
+    </section>
+  </div>
+  <p class="note">Richting en "pad van de bui" (1 en 3) vragen dat de app de verschuiving tussen radarbeelden uitrekent. Variant 2 kan met de gegevens die er nu al zijn.</p>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const HOME = [52.128, 4.447];          // Voorschoten
+const ns = "http://www.w3.org/2000/svg";
+const el = (tag, at, parent) => { const e = document.createElementNS(ns, tag); for (const k in at) e.setAttribute(k, at[k]); parent.appendChild(e); return e; };
+
+function makeMap(id, zoom, center = [52.115, 4.43]) {
+  const m = L.map(id, { zoomControl: false, attributionControl: true, dragging: false, scrollWheelZoom: false,
+    doubleClickZoom: false, touchZoom: false, keyboard: false }).setView(center, zoom);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap", className: "basemap" }).addTo(m);
+  return m;
+}
+
+// Getekende buien: lijst van [lat, lon, straal-km, intensiteit 0..1]
+const CELLS = [[52.075, 4.30, 7, .9], [52.05, 4.22, 5, .6], [52.10, 4.27, 4, .5], [52.02, 4.36, 4, .4],
+               [52.30, 4.70, 6, .5], [52.33, 4.78, 4, .35], [51.98, 4.10, 6, .7]];
+
+function drawRain(map, svg, colors, opts = {}) {
+  const box = svg.getBoundingClientRect(); svg.setAttribute("viewBox", `0 0 ${box.width} ${box.height}`);
+  const defs = el("defs", {}, svg);
+  el("filter", { id: svg.id + "f" }, defs).appendChild(Object.assign(document.createElementNS(ns, "feGaussianBlur"), {})).setAttribute("stdDeviation", "6");
+  CELLS.forEach(([la, lo, km, k], i) => {
+    const p = map.latLngToContainerPoint([la, lo]);
+    const r = km / 111 * Math.pow(2, map.getZoom()) * 256 / 360 * 1.4;
+    const g = el("radialGradient", { id: `${svg.id}g${i}` }, defs);
+    el("stop", { offset: "0%", "stop-color": colors[k > .7 ? 3 : k > .5 ? 2 : 1], "stop-opacity": .95 }, g);
+    el("stop", { offset: "45%", "stop-color": colors[1], "stop-opacity": .75 }, g);
+    el("stop", { offset: "100%", "stop-color": colors[0], "stop-opacity": 0 }, g);
+    el("ellipse", { cx: p.x, cy: p.y, rx: r * 1.35, ry: r, fill: `url(#${svg.id}g${i})`, transform: `rotate(-30 ${p.x} ${p.y})` }, svg);
+  });
+  return map.latLngToContainerPoint(HOME);
+}
+
+// Halve druppel op je plek; fill = hoeveel regen er op dat moment bij jou valt
+function dropMarker(svg, p, edge, fill, frac, size = 34) {
+  const s = size / 100, g = el("g", { transform: `translate(${p.x - 50 * s} ${p.y - 70 * s}) scale(${s})` }, svg);
+  const D = "M50 8C50 8 18 46 18 66a32 32 0 0 0 64 0C82 46 50 8 50 8Z";
+  el("path", { d: D, fill: "#fff" }, g);
+  const cp = el("clipPath", { id: svg.id + "c" }, g); el("path", { d: D }, cp);
+  el("rect", { x: 0, y: 98 - 90 * frac, width: 100, height: 100, fill, "clip-path": `url(#${svg.id}c)` }, g);
+  el("path", { d: "M50 8C50 8 18 46 18 66a32 32 0 0 0 32 32Z", fill, opacity: .35 }, g);
+  el("path", { d: D, fill: "none", stroke: edge, "stroke-width": 8, "stroke-linejoin": "round" }, g);
+}
+
+// ---- A ----
+const mA = makeMap("mapA", 10);
+mA.whenReady(() => setTimeout(() => {
+  const s = document.getElementById("rainA");
+  const p = drawRain(mA, s, ["#A9C3FF", "#6D96FF", "#2F6BFF", "#1C3FBF"]);
+  const from = mA.latLngToContainerPoint([52.075, 4.30]);
+  el("path", { d: `M${from.x} ${from.y} Q${(from.x + p.x) / 2 - 10} ${(from.y + p.y) / 2 + 20} ${p.x - 8} ${p.y + 4}`, stroke: "#14213D", "stroke-width": 2.5, fill: "none", "stroke-dasharray": "2 6", "stroke-linecap": "round", opacity: .6 }, s);
+  dropMarker(s, p, "#14213D", "#2F6BFF", .35, 40);
+}, 300));
+
+// ---- B ----
+const mB = makeMap("mapB", 10);
+mB.whenReady(() => setTimeout(() => {
+  const s = document.getElementById("rainB");
+  const p = drawRain(mB, s, ["#99F6E4", "#5EEAD4", "#FDE68A", "#FF7A59"]);
+  dropMarker(s, p, "#E6F4F1", "#5EEAD4", 0, 40);
+}, 300));
+(() => {
+  const s = document.getElementById("dialB"), cx = 75, cy = 75, R = 58;
+  const rain = [0,0,0,0,0,.15,.5,1.4,3.2,6,2.2,.9,.3,0,0,0,0,0,0,0,0,0,0,0];
+  el("circle", { cx, cy, r: R, fill: "none", stroke: "#1c353c", "stroke-width": 14 }, s);
+  rain.forEach((v, i) => {
+    if (!v) return;
+    const a0 = i / 24 * 2 * Math.PI - Math.PI / 2, a1 = (i + 1) / 24 * 2 * Math.PI - Math.PI / 2;
+    const P = a => [cx + R * Math.cos(a), cy + R * Math.sin(a)];
+    const [x0, y0] = P(a0), [x1, y1] = P(a1);
+    el("path", { d: `M${x0} ${y0} A${R} ${R} 0 0 1 ${x1} ${y1}`, stroke: v > 2.5 ? "#FDE68A" : "#5EEAD4", "stroke-width": 6 + Math.min(1, v / 6) * 10, fill: "none" }, s);
+  });
+  const a = 5 / 24 * 2 * Math.PI - Math.PI / 2;
+  el("line", { x1: cx, y1: cy, x2: cx + (R - 4) * Math.cos(a), y2: cy + (R - 4) * Math.sin(a), stroke: "#FF7A59", "stroke-width": 3, "stroke-linecap": "round" }, s);
+  el("circle", { cx: cx + R * Math.cos(a), cy: cy + R * Math.sin(a), r: 6, fill: "#FF7A59", stroke: "#0b161a", "stroke-width": 2 }, s);
+  el("circle", { cx, cy, r: 22, fill: "#13262b", stroke: "#23434b" }, s);
+  el("text", { x: cx, y: cy - 2, "text-anchor": "middle", "font-size": 13, "font-weight": 700, fill: "#E6F4F1", "font-family": "Space Grotesk" }, s).textContent = "17:45";
+  el("text", { x: cx, y: cy + 12, "text-anchor": "middle", "font-size": 9, fill: "#9fb8b3", "font-family": "Space Grotesk" }, s).textContent = "▶ afspelen";
+})();
+
+// ---- C ----
+const mC = makeMap("mapC", 11, [52.075, 4.37]);
+mC.whenReady(() => setTimeout(() => {
+  const s = document.getElementById("rainC");
+  const p = drawRain(mC, s, ["#C8D2EE", "#8FA3D9", "#2B3F8F", "#17246B"]);
+  const pts = [[52.075, 4.30, "nu"], [52.095, 4.355, "17:30"], [52.112, 4.405, "17:45"]].map(([la, lo, t]) => [mC.latLngToContainerPoint([la, lo]), t]);
+  el("path", { d: `M${pts.map(([q]) => `${q.x} ${q.y}`).join(" L")} L${p.x} ${p.y}`, stroke: "#1d2533", "stroke-width": 3, fill: "none", "stroke-dasharray": "1 8", "stroke-linecap": "round" }, s);
+  pts.forEach(([q, t], i) => {
+    el("circle", { cx: q.x, cy: q.y, r: 5, fill: i ? "#fff" : "#2B3F8F", stroke: "#1d2533", "stroke-width": 2 }, s);
+    const tx = el("text", { x: q.x + 9, y: q.y - 8, "font-size": 13, "font-weight": 600, fill: "#1d2533", "font-family": "Fraunces", "paint-order": "stroke", stroke: "rgba(255,255,255,.85)", "stroke-width": 4 }, s);
+    tx.textContent = t;
+  });
+  dropMarker(s, p, "#1d2533", "#2B3F8F", 0, 40);
+  const t = el("text", { x: p.x - 18, y: p.y + 2, "text-anchor": "end", "font-size": 13, "font-weight": 600, fill: "#1d2533", "font-family": "Fraunces", "paint-order": "stroke", stroke: "rgba(255,255,255,.85)", "stroke-width": 4 }, s);
+  t.textContent = "jij";
+}, 300));
+</script>
+</body>
+</html>
