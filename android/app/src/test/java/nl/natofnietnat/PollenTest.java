@@ -80,4 +80,13 @@ public class PollenTest {
         assertEquals("www.kleenex.fr", Pollen.sites(48.85, 2.35)[0]);     // Parijs
         assertEquals(0, Pollen.sites(52.52, 13.4).length);                // Berlijn: geen Kleenex
     }
+
+    @Test
+    public void legeWaardenBuitenEuropaGevenGeenPollen() throws Exception {
+        String[][] sp = {{"grass_pollen", "Gras", "grass"}};
+        JSONObject leeg = new JSONObject("{\"time\":[\"2026-11-14T00:00\",\"2026-11-14T01:00\"],\"grass_pollen\":[null,null]}");
+        assertNull(Pollen.parseOpenMeteo(leeg, sp));
+        JSONObject vol = new JSONObject("{\"time\":[\"2026-11-14T00:00\",\"2026-11-14T01:00\"],\"grass_pollen\":[null,40]}");
+        assertEquals("moderate", Pollen.parseOpenMeteo(vol, sp).getJSONArray("days").getJSONObject(0).getJSONObject("grass").getString("level"));
+    }
 }

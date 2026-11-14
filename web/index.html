@@ -1842,15 +1842,14 @@ $("placeSearch").addEventListener("keydown", e => {
   if (e.key === "Enter") { e.preventDefault(); $("placeSearch").blur(); searchPlaces($("placeSearch").value.trim()); }
 });
 $("placeGo").onclick = () => searchPlaces($("placeSearch").value.trim());
-const EUROPE = "nl,be,lu,de,fr,gb,ie,es,pt,it,ch,at,dk,no,se,fi,is,pl,cz,sk,hu,si,hr,ba,rs,me,mk,al,gr,bg,ro,md,ua,by,lt,lv,ee,mt,cy,li,mc,sm,ad,va,gi,im,je,gg,fo,xk";
 async function searchPlaces(q) {
   if (q.length < 2) return;
   const seq = ++searchSeq;
   const box = $("placeResults");
   box.innerHTML = `<div class="s-empty">Zoeken…</div>`;
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=10&countrycodes=${EUROPE}&accept-language=nl&q=${encodeURIComponent(q)}`;
-    // Plaatsen in Nederland en België eerst (bij gelijke namen, zoals Bergen), daarna de rest van Europa
+    const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=10&accept-language=nl&q=${encodeURIComponent(q)}`;
+    // Wereldwijd zoeken; plaatsen in Nederland en België eerst (bij gelijke namen, zoals Bergen)
     const res = (await (await fetch(url)).json())
       .map((r, i) => ({ r, k: (["nl", "be"].includes((r.address || {}).country_code) ? 0 : 1) * 100 + i }))
       .sort((a, b) => a.k - b.k).map(x => x.r).slice(0, 8);

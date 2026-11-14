@@ -50,7 +50,7 @@ Kies hoe lang je onderweg bent (10, 20, 30 of 45 minuten) en de app zoekt het mo
 Zet Nat of niet? op je startscherm en zie zonder de app te openen of het droog blijft.
 
 🗺️ RADAR
-Bekijk hoe de buien trekken, in heel Europa. De app vertelt in gewone taal waar de bui vandaan komt, wanneer hij bij jou is en tekent zijn pad op de kaart.
+Bekijk hoe de buien trekken, in heel Europa en in veel landen daarbuiten. De app vertelt in gewone taal waar de bui vandaan komt, wanneer hij bij jou is en tekent zijn pad op de kaart.
 
 🔔 REGENALARM
 Krijg een melding voordat het gaat regenen, met hoe hard het wordt en wanneer het weer droog is. Of juist een seintje wanneer de bui voorbij is.

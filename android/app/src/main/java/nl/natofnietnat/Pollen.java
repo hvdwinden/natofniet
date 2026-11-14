@@ -165,7 +165,12 @@ public final class Pollen {
         JSONObject j = new JSONObject(http(String.format(Locale.ROOT,
                 "https://air-quality-api.open-meteo.com/v1/air-quality?latitude=%.3f&longitude=%.3f&hourly=%s&forecast_days=4&timezone=auto",
                 lat, lon, vars), false));
-        JSONObject h = j.getJSONObject("hourly");
+        return parseOpenMeteo(j.getJSONObject("hourly"), species);
+    }
+
+    /** Buiten Europa geeft Copernicus alleen lege waarden: dan null (geen pollenkaart), niet "Laag". */
+    static JSONObject parseOpenMeteo(JSONObject h, String[][] species) throws Exception {
+        boolean any = false;
         JSONArray times = h.getJSONArray("time");
         JSONArray days = new JSONArray();
         for (int start = 0; start < times.length(); start += 24) {
@@ -177,7 +182,11 @@ public final class Pollen {
                     if (!s[2].equals(g)) continue;
                     JSONArray arr = h.getJSONArray(s[0]);
                     double max = 0;
-                    for (int i = start; i < Math.min(start + 24, arr.length()); i++) max = Math.max(max, arr.optDouble(i, 0));
+                    for (int i = start; i < Math.min(start + 24, arr.length()); i++) {
+                        if (arr.isNull(i)) continue;
+                        any = true;
+                        max = Math.max(max, arr.optDouble(i, 0));
+                    }
                     sum += max;
                     details.put(new JSONObject().put("name", s[1]).put("value", Math.round(max)).put("level", levelFor(g, max)));
                 }
@@ -185,7 +194,7 @@ public final class Pollen {
             }
             days.put(day);
         }
-        return new JSONObject().put("source", "openmeteo").put("days", days);
+        return any ? new JSONObject().put("source", "openmeteo").put("days", days) : null;
     }
 
     // ---------- Melding-tekst ----------
