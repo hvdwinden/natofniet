@@ -57,4 +57,27 @@ public class PollenTest {
         assertEquals("moderate", Pollen.levelFor("grass", 50));
         assertEquals("very-high", Pollen.levelFor("trees", 900));
     }
+
+    @Test
+    public void fransePaginaKrijgtNederlandseNamen() throws Exception {
+        String html = "<button class=\"day-link active\" data-grass=\"low\" data-trees=\"moderate\" data-weeds=\"low\" "
+                + "data-grass-count=\"0 PPM\" data-weeds-count=\"0 PPM\" data-trees-count=\"120 PPM\" data-grass-detail=\"Poaceae ,0,low\" "
+                + "data-tree-detail=\"Ch&#234;ne,120,moderate|Bouleau,3,low\" data-weed-detail=\"Armoise,0,low\">";
+        JSONObject p = Pollen.parseKleenex(html, "Lyon");
+        org.json.JSONArray trees = p.getJSONArray("days").getJSONObject(0).getJSONObject("trees").getJSONArray("details");
+        assertEquals("Eik", trees.getJSONObject(0).getString("name"));
+        assertEquals("Berk", trees.getJSONObject(1).getString("name"));
+        assertEquals("Poaceae", p.getJSONArray("days").getJSONObject(0).getJSONObject("grass").getJSONArray("details").getJSONObject(0).getString("name"));
+    }
+
+    @Test
+    public void juisteKleenexSitePerLand() {
+        assertEquals("www.kleenex.nl", Pollen.sites(52.09, 5.12)[0]);     // Utrecht
+        assertEquals("www.kleenex.nl", Pollen.sites(51.05, 3.72)[0]);     // Gent
+        assertEquals("www.kleenex.co.uk", Pollen.sites(51.5, -0.12)[0]);  // Londen
+        assertEquals("www.kleenex.co.uk", Pollen.sites(54.6, -5.93)[0]);  // Belfast
+        assertEquals("www.kleenex.fr", Pollen.sites(45.76, 4.84)[0]);     // Lyon
+        assertEquals("www.kleenex.fr", Pollen.sites(48.85, 2.35)[0]);     // Parijs
+        assertEquals(0, Pollen.sites(52.52, 13.4).length);                // Berlijn: geen Kleenex
+    }
 }

@@ -153,10 +153,13 @@
   body[data-theme="nacht"] .seg button.active, body[data-sky="nacht"] .seg button.active { background: var(--accent); color: var(--accent-ink); }
   #frameTime { margin-left: auto; font-variant-numeric: tabular-nums; font-size: .9rem; font-weight: 700; white-space: nowrap; }
   #frameTime.future { color: var(--future); }
-  .prog { height: 14px; margin: 6px 0 -4px; position: relative; touch-action: none; cursor: ew-resize; }
-  .prog::before { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 2px; border-radius: 1px; background: var(--line); }
-  .prog i { position: absolute; left: 0; top: 6px; height: 2px; border-radius: 1px; background: var(--accent); width: 0; }
-  .prog i::after { content: ""; position: absolute; right: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+  /* Tijdlijn: dun lijntje, maar met een ruim raakvlak (40 px hoog) zodat je hem met je duim makkelijk pakt */
+  .prog { height: 40px; margin: 2px 0 -16px; outline: none; position: relative; z-index: 2; touch-action: none; cursor: ew-resize; }
+  .prog::before { content: ""; position: absolute; left: 0; right: 0; top: 18px; height: 4px; border-radius: 2px; background: var(--line); }
+  .prog i { position: absolute; left: 0; top: 18px; height: 4px; border-radius: 2px; background: var(--accent); width: 0; }
+  .prog i::after { content: ""; position: absolute; right: -9px; top: -7px; width: 18px; height: 18px; border-radius: 50%; background: var(--accent);
+    box-shadow: 0 1px 4px rgba(0,0,0,.35); transition: transform .12s; }
+  .prog.drag i::after { transform: scale(1.35); }
   /* Buienpad: stippellijn met tijden */
   .path-label { font: 600 12px var(--head); color: var(--text); white-space: nowrap; text-shadow: 0 0 3px var(--solid), 0 0 3px var(--solid), 0 0 6px var(--solid); }
   .home-drop svg { overflow: visible; filter: drop-shadow(0 2px 3px rgba(0,0,0,.3)); }
@@ -314,7 +317,7 @@
           </div>
           <span id="frameTime">--:--</span>
         </div>
-        <div class="prog" id="prog"><i id="progBar"></i></div>
+        <div class="prog" id="prog" role="slider" tabindex="0" aria-label="Tijd van het radarbeeld"><i id="progBar"></i></div>
       </div>
     </div>
   </section>
@@ -478,7 +481,7 @@
     <div class="s-head">Over Nat of niet?</div>
     <div class="s-card">
       <div class="s-row"><div class="s-title" id="aboutVersion">Nat of niet?</div></div>
-      <div class="s-row"><div class="s-main"><div class="s-sub">Neerslag en radar: Buienradar (Nederland en België), elders in Europa Open-Meteo en RainViewer<br>Pollen: Kleenex pollenradar (onofficieel), reserve Open-Meteo/CAMS<br>Weer en 24 uur/14 dagen: Open-Meteo<br>Kaart: OpenStreetMap</div></div></div>
+      <div class="s-row"><div class="s-main"><div class="s-sub">Neerslag en radar: Buienradar (Nederland en België), elders in Europa Open-Meteo en RainViewer<br>Pollen: Kleenex pollenradar (onofficieel; Nederland, Verenigd Koninkrijk, Frankrijk), elders Open-Meteo/CAMS<br>Weer en 24 uur/14 dagen: Open-Meteo<br>Kaart: OpenStreetMap</div></div></div>
     </div>
   </div>
 </div>
@@ -1205,8 +1208,20 @@ function scrub(e) {
   stop();
   showFrame(Math.round(f * (frames.length - 1)));
 }
-$("prog").addEventListener("pointerdown", e => { $("prog").setPointerCapture(e.pointerId); scrub(e); });
-$("prog").addEventListener("pointermove", e => { if (e.buttons || e.pointerType === "touch") scrub(e); });
+let scrubbing = false;
+// Een klik-handler (en role="slider") zorgt dat Android een aanraking vlak bij de lijn niet naar de knoppen erboven verlegt
+$("prog").addEventListener("click", e => e.preventDefault());
+$("prog").addEventListener("keydown", e => {
+  if (!frames.length || !["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+  stop(); showFrame(Math.min(frames.length - 1, Math.max(0, frameIdx + (e.key === "ArrowRight" ? 1 : -1))));
+});
+$("prog").addEventListener("pointerdown", e => {
+  scrubbing = true; $("prog").classList.add("drag");
+  $("prog").setPointerCapture(e.pointerId); scrub(e);
+});
+$("prog").addEventListener("pointermove", e => { if (scrubbing) scrub(e); });
+["pointerup", "pointercancel", "lostpointercapture"].forEach(t =>
+  $("prog").addEventListener(t, () => { scrubbing = false; $("prog").classList.remove("drag"); }));
 // Knoppen springen naar een tijd t.o.v. nu: vooruit bij Buienradar, terug bij RainViewer (alleen gemeten beelden)
 const frameAt = min => {
   const t = frames[nowIndex].time + min * 60;
@@ -1588,7 +1603,7 @@ function drawPath(arrival) {
   const [hx, hy] = tp(pos.lat, pos.lon);
   const at = m => tl(hx - motion.dx * (mins - m) / 30, hy - motion.dy * (mins - m) / 30);   // plek van de bui op minuut m
   const pts = [], labels = [];
-  for (let m = 0; m < mins - 4; m += 15) {
+  for (let m = 0; m < mins - 9; m += 15) {      // geen kwartiertijd vlak bij de aankomsttijd (overlapt)
     pts.push(at(m));
     labels.push([at(m), m === 0 ? "nu" : fmtTime(new Date(Date.now() + m * 60000))]);
   }

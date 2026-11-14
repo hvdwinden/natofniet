@@ -31,7 +31,7 @@ public final class Pollen {
     static JSONObject get(String city, double lat, double lon) {
         if (city != null && !city.isEmpty() && !city.matches("[-0-9., ]+")) {
             try {
-                JSONObject k = kleenex(city);
+                JSONObject k = kleenex(city, lat, lon);
                 if (k != null) return k;
             } catch (Exception ignored) { /* val terug op Open-Meteo */ }
         }
@@ -44,10 +44,65 @@ public final class Pollen {
     private static final Pattern DAY = Pattern.compile("<button[^>]*class=\"day-link[^\"]*\"[^>]*>");
     private static final Pattern ATTR = Pattern.compile("data-([a-z-]+)=\"([^\"]*)\"");
 
-    static JSONObject kleenex(String city) throws Exception {
-        String html = http("https://www.kleenex.nl/api/sitecore/Pollen/GetPollenContentCity?city="
-                + URLEncoder.encode(city, "UTF-8"), true);
-        return parseKleenex(html, city);
+    /** Kleenex heeft dezelfde pollenradar in Nederland, het Verenigd Koninkrijk en Frankrijk. */
+    static JSONObject kleenex(String city, double lat, double lon) throws Exception {
+        for (String site : sites(lat, lon)) {
+            java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
+            names.add(city);
+            // De app kent de Nederlandse naam ("Londen", "Rijsel"); Kleenex daar de Engelse of Franse
+            if (!site.endsWith(".nl")) {
+                try { String local = localName(lat, lon, site.endsWith(".fr") ? "fr" : "en"); if (local != null) names.add(local); }
+                catch (Exception ignored) { }
+            }
+            for (String name : names) {
+                String html = http("https://" + site + "/api/sitecore/Pollen/GetPollenContentCity?city="
+                        + URLEncoder.encode(name, "UTF-8"), true);
+                JSONObject k = parseKleenex(html, name);
+                if (k != null) return k;
+            }
+        }
+        return null;
+    }
+
+    /** Plaatsnaam in de taal van het land (OpenStreetMap). */
+    private static String localName(double lat, double lon, String lang) throws Exception {
+        JSONObject j = new JSONObject(http(String.format(Locale.ROOT,
+                "https://nominatim.openstreetmap.org/reverse?format=json&zoom=10&accept-language=%s&lat=%.4f&lon=%.4f", lang, lat, lon), true));
+        JSONObject a = j.optJSONObject("address");
+        if (a == null) return null;
+        for (String k : new String[]{"city", "town", "village", "municipality"}) if (a.has(k)) return a.getString(k);
+        return null;
+    }
+
+    /** Welke Kleenex-site(s) bij deze plek horen (ruwe grenzen; bij twijfel ook Nederland). */
+    static String[] sites(double lat, double lon) {
+        boolean uk = lat > 49.8 && lat < 61 && lon > -8.7 && lon < 1.8 && (lon < -1.9 || lat > 51.05);
+        boolean fr = lat > 41.2 && lat < 51.1 && lon > -5.2 && lon < 9.7 && !uk && !(lat > 49.4 && lon > 2.6);
+        if (uk) return new String[]{"www.kleenex.co.uk"};
+        if (fr) return new String[]{"www.kleenex.fr"};
+        if (lat > 49.4 && lat < 53.7 && lon > 2.5 && lon < 7.3) return new String[]{"www.kleenex.nl", "www.kleenex.fr"};
+        return new String[0];
+    }
+
+    /** Soortnamen van de Engelse en Franse site in het Nederlands. */
+    private static final java.util.Map<String, String> NAMES = new java.util.HashMap<>();
+    static {
+        String[][] n = {{"Hazel", "Hazelaar"}, {"Elm", "Iep"}, {"Pine", "Pijnboom"}, {"Alder", "Els"}, {"Poplar", "Populier"},
+                {"Oak", "Eik"}, {"Plane", "Plataan"}, {"Birch", "Berk"}, {"Cypress", "Cipres"}, {"Mugwort", "Bijvoet"},
+                {"Chenopod", "Ganzevoet"}, {"Ragweed", "Ambrosia"}, {"Nettle", "Brandnetel"},
+                {"Noisetier", "Hazelaar"}, {"Orme", "Iep"}, {"Pin", "Pijnboom"}, {"Aulne", "Els"}, {"Peuplier", "Populier"},
+                {"Chêne", "Eik"}, {"Platane", "Plataan"}, {"Bouleau", "Berk"}, {"Cyprès", "Cipres"}, {"Armoise", "Bijvoet"},
+                {"Chénopodes", "Ganzevoet"}, {"Ambroisie", "Ambrosia"}, {"Ortie", "Brandnetel"}, {"Urticacées", "Brandnetel"}};
+        for (String[] p : n) NAMES.put(p[0], p[1]);
+    }
+
+    /** "Ch&#234;ne" → "Chêne" */
+    static String unescape(String s) {
+        Matcher m = Pattern.compile("&#(\\d+);").matcher(s);
+        StringBuffer b = new StringBuffer();
+        while (m.find()) m.appendReplacement(b, Matcher.quoteReplacement(String.valueOf((char) Integer.parseInt(m.group(1)))));
+        m.appendTail(b);
+        return s.indexOf('&') < 0 ? s : b.toString().replace("&amp;", "&");
     }
 
     /** Leest de dagknoppen uit de Kleenex-HTML (los van het ophalen, zodat het te testen is). */
@@ -80,7 +135,10 @@ public final class Pollen {
         JSONArray details = new JSONArray();
         for (String item : a.optString(detailKey + "-detail", "").split("\\|")) {
             String[] p = item.split(",");
-            if (p.length == 3) details.put(new JSONObject().put("name", p[0]).put("value", Integer.parseInt(p[1].trim())).put("level", p[2]));
+            if (p.length != 3) continue;
+            String name = unescape(p[0]).trim();
+            name = NAMES.getOrDefault(name, name);
+            details.put(new JSONObject().put("name", name).put("value", Integer.parseInt(p[1].trim())).put("level", p[2]));
         }
         return new JSONObject().put("level", level).put("value", value).put("details", details);
     }
