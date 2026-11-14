@@ -137,7 +137,33 @@
                 border: 2px solid rgba(0,0,0,.2); border-radius: 4px; cursor: pointer; padding: 0; }
   .basemap { filter: grayscale(.8) brightness(.5) contrast(1.15); }
   body.light-map .basemap { filter: grayscale(.4) brightness(1) contrast(.95); }
-  .radar-controls { position: absolute; left: 10px; bottom: 10px; z-index: 1000;
+  .story { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 1000; background: var(--glass);
+           backdrop-filter: blur(12px); border: 1px solid var(--line2); border-radius: 20px; padding: 12px 14px 10px;
+           box-shadow: 0 8px 26px rgba(0,0,0,.18); }
+  .story p { margin: 0 0 9px; font: 600 1.08rem/1.3 var(--head); }
+  body[data-theme="lucht"] .story p { font-weight: 500; font-size: 1.15rem; }
+  .story p i { font-style: normal; color: var(--accent); }
+  body[data-theme="lucht"] .story p i { font-style: italic; }
+  .ctrl { display: flex; align-items: center; gap: 8px; }
+  .ctrl .round { width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-ink);
+                 font-size: .8rem; cursor: pointer; display: grid; place-items: center; padding: 0; }
+  .seg { display: flex; background: var(--line2); border-radius: 9px; padding: 2px; }
+  .seg button { border: 0; background: none; color: var(--muted); font: 600 .78rem var(--body); padding: 5px 8px; border-radius: 7px; cursor: pointer; }
+  .seg button.active { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+  body[data-theme="nacht"] .seg button.active, body[data-sky="nacht"] .seg button.active { background: var(--accent); color: var(--accent-ink); }
+  #frameTime { margin-left: auto; font-variant-numeric: tabular-nums; font-size: .9rem; font-weight: 700; white-space: nowrap; }
+  #frameTime.future { color: var(--future); }
+  .prog { height: 14px; margin: 6px 0 -4px; position: relative; touch-action: none; cursor: ew-resize; }
+  .prog::before { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 2px; border-radius: 1px; background: var(--line); }
+  .prog i { position: absolute; left: 0; top: 6px; height: 2px; border-radius: 1px; background: var(--accent); width: 0; }
+  .prog i::after { content: ""; position: absolute; right: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+  /* Buienpad: stippellijn met tijden */
+  .path-label { font: 600 12px var(--head); color: var(--text); white-space: nowrap; text-shadow: 0 0 3px var(--solid), 0 0 3px var(--solid), 0 0 6px var(--solid); }
+  .home-drop svg { overflow: visible; filter: drop-shadow(0 2px 3px rgba(0,0,0,.3)); }
+  /* Radarkleuren per thema */
+  body[data-theme="nacht"] .radar-img { filter: hue-rotate(-62deg) saturate(1.3) brightness(1.15); }
+  body[data-theme="lucht"] .radar-img { filter: saturate(.75) brightness(.85); }
+  .radar-controls-unused { position: absolute; left: 10px; bottom: 10px; z-index: 1000;
                     display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 6px;
                     background: var(--glass); border-radius: 24px; }
   #playBtn { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; font-size: .95rem; }
@@ -278,12 +304,19 @@
   <section class="panel" id="radarPanel">
     <div id="mapWrap">
       <div id="map"></div>
-      <div class="radar-controls">
-        <button id="playBtn" title="Afspelen/pauzeren">⏸</button>
-        <span id="frameTime">--:--</span>
+      <!-- Het verhaal van de bui, met compacte bediening -->
+      <div class="story" id="story">
+        <p id="storyText">Radar laden…</p>
+        <div class="ctrl">
+          <button id="playBtn" class="round" title="Afspelen/pauzeren" aria-label="Afspelen/pauzeren">▶</button>
+          <div class="seg" id="jumpSeg">
+            <button data-off="0">nu</button><button data-off="6">+30m</button><button data-off="12">+1u</button><button data-off="18">+1½u</button>
+          </div>
+          <span id="frameTime">--:--</span>
+        </div>
+        <div class="prog" id="prog"><i id="progBar"></i></div>
       </div>
     </div>
-    <div class="mini-wrap" id="miniWrap"><canvas id="mini"></canvas></div>
   </section>
 
   <section class="panel" id="weatherPanel">
@@ -483,8 +516,9 @@ let tab = "graphPanel";
 document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
 function placeStats() {
   // Actuele waarden: op Nu als kaart onder de grafiek, op Radar boven de kaart, op Week niet
-  if (tab === "radarPanel") $("radarPanel").prepend($("stats")); else $("nuStats").append($("stats"));
-  $("stats").classList.toggle("hidden", tab === "weatherPanel");
+  // Radar: geen waardenbalk meer, de kaart vult het scherm
+  $("nuStats").append($("stats"));
+  $("stats").classList.toggle("hidden", tab !== "graphPanel");
 }
 function showTab(id) {
   tab = id;
@@ -492,7 +526,7 @@ function showTab(id) {
   document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === id));
   placeStats();
   cursorT = null;
-  if (id === "radarPanel") { map.invalidateSize(); showFrame(nowIndex); play(); }
+  if (id === "radarPanel") { map.invalidateSize(); showFrame(nowIndex); play(); renderStory(); }
   else stop();
   drawAll();
 }
@@ -522,7 +556,20 @@ new LocateControl().addTo(map);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: '&copy; OpenStreetMap · Buienradar', maxZoom: 18, className: "basemap"
 }).addTo(map);
-const marker = L.circleMarker([pos.lat, pos.lon], { radius: 8, color: "#fff", weight: 2, fillColor: "#38bdf8", fillOpacity: 1 }).addTo(map);
+// Je plek is de halve druppel; hij loopt vol naarmate het op het getoonde moment bij jou regent
+const DROP = "M50 8C50 8 18 46 18 66a32 32 0 0 0 64 0C82 46 50 8 50 8Z";
+const dropIcon = L.divIcon({ className: "home-drop", iconSize: [34, 34], iconAnchor: [17, 30],
+  html: `<svg width="34" height="34" viewBox="0 0 100 100"><defs><clipPath id="dropClip"><path d="${DROP}"/></clipPath></defs>
+    <path d="${DROP}" fill="#fff"/><rect id="dropFill" x="0" y="98" width="100" height="100" clip-path="url(#dropClip)" style="fill:var(--accent);transition:y .3s"/>
+    <path d="M50 8C50 8 18 46 18 66a32 32 0 0 0 32 32Z" style="fill:var(--accent)" opacity=".3"/>
+    <path d="${DROP}" fill="none" style="stroke:var(--text)" stroke-width="8" stroke-linejoin="round"/></svg>` });
+const marker = L.marker([pos.lat, pos.lon], { icon: dropIcon, interactive: false, zIndexOffset: 1000 }).addTo(map);
+// Heb je zelf de kaart verschoven of gezoomd, dan zetten we hem niet meer automatisch om het buienpad
+let userMovedMap = false, fittingMap = false;
+map.on("dragstart", () => userMovedMap = true);
+map.getContainer().addEventListener("wheel", () => userMovedMap = true, { passive: true });
+map.getContainer().addEventListener("touchstart", e => { if (e.touches.length > 1) userMovedMap = true; }, { passive: true });
+map.getContainer().addEventListener("click", e => { if (e.target.closest(".leaflet-control-zoom")) userMovedMap = true; });
 map.on("click", e => setPosition(e.latlng.lat, e.latlng.lng, null, false, true));
 
 // ---------- Data: Buienradar (2 uur) ----------
@@ -633,7 +680,7 @@ function render() {
   renderDays();
   if (!nowcast.length) {
     setVerdict("Geen verwachting", "Buienradar heeft alleen data voor Nederland en België.", "");
-    renderTrip();
+    renderTrip(); renderStory();
     cursorT = null; updateStatsForTime(null);
     drawAll(); return;
   }
@@ -641,6 +688,7 @@ function render() {
   cursorT = null;
   updateStatsForTime(null);
   renderTrip();
+  renderStory();
 
   const firstWet = nowcast.findIndex(r => r.mm >= WET);
   const total = nowcast.reduce((s, r) => s + r.mm / 12, 0);
@@ -1111,31 +1159,20 @@ function scrubMain(e) {
 $("chartWrap").addEventListener("pointerdown", e => { $("chartWrap").setPointerCapture(e.pointerId); scrubMain(e); });
 $("chartWrap").addEventListener("pointermove", e => { if (e.buttons || e.pointerType === "touch") scrubMain(e); });
 
-// Kleine grafiek onder de radar: zelfde tijdspanne als de radarbeelden
-function drawMini() {
-  if (tab !== "radarPanel" || !frames.length) return;
-  // Tijdspanne: van het eerste radarbeeld tot het eind van radar of verwachting
-  let t0 = frames[0].time * 1000, t1 = frames.at(-1).time * 1000;
-  if (nowcast.length) { t0 = Math.min(t0, nowcast[0].date.getTime()); t1 = Math.max(t1, nowcast.at(-1).date.getTime()); }
-  drawRain($("mini"), nowcast, t0, t1, {
-    levels: false, bars5: (prefs.graph || "bars") === "bars",
-    nowT: Math.min(Math.max(Date.now(), t0), t1),
-    marker: frames[frameIdx].time * 1000
-  });
-}
-function drawAll() { drawMain(); drawMini(); }
+function drawAll() { drawMain(); }
 window.addEventListener("resize", () => { drawAll(); map.invalidateSize(); });
 
-// Over de kleine grafiek vegen = door de radarbeelden schuiven
+// Over de voortgangslijn vegen = door de radarbeelden schuiven
 function scrub(e) {
   if (!frames.length) return;
-  const r = $("miniWrap").getBoundingClientRect();
+  const r = $("prog").getBoundingClientRect();
   const f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
   stop();
   showFrame(Math.round(f * (frames.length - 1)));
 }
-$("miniWrap").addEventListener("pointerdown", e => { $("miniWrap").setPointerCapture(e.pointerId); scrub(e); });
-$("miniWrap").addEventListener("pointermove", e => { if (e.buttons || e.pointerType === "touch") scrub(e); });
+$("prog").addEventListener("pointerdown", e => { $("prog").setPointerCapture(e.pointerId); scrub(e); });
+$("prog").addEventListener("pointermove", e => { if (e.buttons || e.pointerType === "touch") scrub(e); });
+document.querySelectorAll("#jumpSeg button").forEach(b => b.onclick = () => { stop(); showFrame(Math.min(nowIndex + +b.dataset.off, frames.length - 1)); });
 
 // ---------- Radaranimatie ----------
 // Buienradar: laatste meting + 2 uur vooruit, elke 5 minuten. Anders RainViewer (alleen verleden).
@@ -1158,7 +1195,8 @@ async function loadBuienradarFrames() {
   return {
     list,
     nowIndex: Math.max(0, list.findIndex(f => f.time * 1000 >= last)),
-    makeLayer: f => L.imageOverlay(f.url, BR_BOUNDS, { opacity: 0, zIndex: 10 })
+    makeLayer: f => L.imageOverlay(f.url, BR_BOUNDS, { opacity: 0, zIndex: 10, className: "radar-img" }),
+    buienradar: true
   };
 }
 
@@ -1197,6 +1235,12 @@ async function loadRadar() {
   layers = frames.map(f => src.makeLayer(f).addTo(map));
   showFrame(nowIndex);
   if (tab === "radarPanel") play();
+  motion = null;
+  if (src.buienradar) {
+    try { motion = await estimateMotion(frames, nowIndex); } catch (e) { motion = null; }
+    if (id !== radarLoadId) return;
+  }
+  renderStory();
 }
 
 function showFrame(i) {
@@ -1206,9 +1250,24 @@ function showFrame(i) {
   const t = frames[frameIdx].time * 1000;
   const future = frameIdx > nowIndex;
   const hhmm = fmtTime(new Date(t));
-  $("frameTime").textContent = frameIdx === nowIndex ? `${hhmm} · nu` : future ? `${hhmm} · verwacht` : hhmm;
+  $("frameTime").textContent = hhmm;
   $("frameTime").className = future ? "future" : "";
-  if (tab === "radarPanel") { updateStatsForTime(t); drawMini(); }
+  // Voortgang, knoppen en de druppel op je plek volgen het getoonde beeld
+  $("progBar").style.width = (frames.length > 1 ? frameIdx / (frames.length - 1) * 100 : 0) + "%";
+  const off = frameIdx - nowIndex;
+  document.querySelectorAll("#jumpSeg button").forEach(b => b.classList.toggle("active", +b.dataset.off === off));
+  updateDrop(t);
+}
+function updateDrop(t) {
+  const el = document.getElementById("dropFill");
+  if (!el) return;
+  let mm = 0;
+  if (nowcast.length) {
+    const r = nowcast.reduce((a, b) => Math.abs(b.date - t) < Math.abs(a.date - t) ? b : a);
+    if (Math.abs(r.date - t) <= 450e3) mm = r.mm;
+  }
+  const frac = mm < WET ? 0 : .25 + .75 * yFrac(mm);
+  el.setAttribute("y", 98 - 90 * frac);
 }
 function play() {
   stop();
@@ -1218,14 +1277,144 @@ function play() {
     timer = setTimeout(tick, frameIdx === frames.length - 1 ? 1800 : 450);
   };
   timer = setTimeout(tick, 450);
-  $("playBtn").textContent = "⏸";
+  $("playBtn").textContent = "❚❚";
 }
 function stop() {
   clearTimeout(timer); timer = null;
   $("playBtn").textContent = "▶";
-  updateStatsForTime(null);
 }
 $("playBtn").onclick = () => timer ? stop() : play();
+
+// ---------- Waar trekken de buien heen? ----------
+// Vergelijkt het radarbeeld van nu met dat van 30 minuten later rond je plek en zoekt de verschuiving
+// waarbij de buien het best over elkaar vallen. Resultaat: verplaatsing in beeldpixels per 30 minuten.
+let motion = null, pathLayer = null;
+const mercY = lat => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+const BR_W = 550, BR_H = 512;
+const toPix = (lat, lon) => [(lon - BR_BOUNDS[0][1]) / (BR_BOUNDS[1][1] - BR_BOUNDS[0][1]) * BR_W,
+  (mercY(BR_BOUNDS[1][0]) - mercY(lat)) / (mercY(BR_BOUNDS[1][0]) - mercY(BR_BOUNDS[0][0])) * BR_H];
+const toLatLng = (x, y) => {
+  const my = mercY(BR_BOUNDS[1][0]) - y / BR_H * (mercY(BR_BOUNDS[1][0]) - mercY(BR_BOUNDS[0][0]));
+  return [Math.atan(Math.sinh(my)) * 180 / Math.PI, BR_BOUNDS[0][1] + x / BR_W * (BR_BOUNDS[1][1] - BR_BOUNDS[0][1])];
+};
+function loadPixels(url, scale) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const w = Math.round(BR_W * scale), h = Math.round(BR_H * scale);
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      const ctx = c.getContext("2d"); ctx.drawImage(img, 0, 0, w, h);
+      const d = ctx.getImageData(0, 0, w, h).data, a = new Float32Array(w * h);
+      for (let i = 0; i < a.length; i++) a[i] = d[i * 4 + 3] / 255;   // doorzichtigheid = hoeveel regen
+      res({ a, w, h });
+    };
+    img.onerror = rej;
+    img.src = url;
+  });
+}
+async function estimateMotion(frames, i0) {
+  const i1 = Math.min(i0 + 6, frames.length - 1);
+  if (i1 <= i0) return null;
+  const S = .25, [A, B] = await Promise.all([loadPixels(frames[i0].url, S), loadPixels(frames[i1].url, S)]);
+  const [hx, hy] = toPix(pos.lat, pos.lon).map(v => v * S);
+  const R = 40, M = 12, { w, h } = A;          // gebied ±40 px (±200 km) rond je plek, zoeken tot ±12 px
+  const x0 = Math.max(M, Math.round(hx - R)), x1 = Math.min(w - M, Math.round(hx + R));
+  const y0 = Math.max(M, Math.round(hy - R)), y1 = Math.min(h - M, Math.round(hy + R));
+  let mass = 0;
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) mass += A.a[y * w + x];
+  if (mass < 3) return null;                     // te weinig buien om iets over te zeggen
+  let best = { s: -1, dx: 0, dy: 0 };
+  for (let dy = -M; dy <= M; dy++) for (let dx = -M; dx <= M; dx++) {
+    let sc = 0;
+    for (let y = y0; y < y1; y++) {
+      const ra = y * w, rb = (y + dy) * w + dx;
+      for (let x = x0; x < x1; x++) sc += A.a[ra + x] * B.a[rb + x];
+    }
+    if (sc > best.s) best = { s: sc, dx, dy };
+  }
+  if (best.s <= 0) return null;
+  return { dx: best.dx / S, dy: best.dy / S, mass };   // beeldpixels per 30 minuten
+}
+const DIR_NL = ["noorden", "noordoosten", "oosten", "zuidoosten", "zuiden", "zuidwesten", "westen", "noordwesten"];
+// Richting waar de buien vandaan komen (tegengesteld aan de beweging)
+function fromWord(m) {
+  const deg = (Math.atan2(-m.dx, m.dy) * 180 / Math.PI + 360) % 360;   // 0 = noord
+  return DIR_NL[Math.round(deg / 45) % 8];
+}
+function towardWord(m) {
+  const deg = (Math.atan2(m.dx, -m.dy) * 180 / Math.PI + 360) % 360;
+  return DIR_NL[Math.round(deg / 45) % 8];
+}
+// "begint het te miezeren", "begint het flink te regenen", ...
+const rainVerb = mm => mm < .5 ? "te miezeren" : mm < 2.5 ? "te regenen" : mm < 10 ? "flink te regenen" : "te plenzen";
+const rainNow = mm => mm < .5 ? "Het miezert nu" : mm < 2.5 ? "Het regent nu" : mm < 10 ? "Het regent nu flink" : "Het plenst nu";
+
+// Na het kiezen van een andere plek: beweging opnieuw bepalen rond die plek
+async function refreshMotion() {
+  if (!frames.length || !frames[0].url) return;
+  try { motion = await estimateMotion(frames, nowIndex); } catch (e) { motion = null; }
+  renderStory();
+}
+
+// Het verhaal onder de kaart, en het pad van de bui op de kaart
+function renderStory() {
+  if (pathLayer) { map.removeLayer(pathLayer); pathLayer = null; }
+  const moving = motion && Math.hypot(motion.dx, motion.dy) >= 2;
+  if (!nowcast.length) {
+    $("storyText").innerHTML = moving ? `De buien trekken naar het ${towardWord(motion)}.` : "Geen regenverwachting voor deze plek (alleen Nederland en België).";
+    return;
+  }
+  const firstWet = nowcast.findIndex(r => r.mm >= WET);
+  const wetNow = nowcast[0].mm >= WET;
+  const endIdx = firstWet === -1 ? -1 : nowcast.slice(firstWet).findIndex(r => r.mm < WET);
+  const end = endIdx === -1 ? null : nowcast[firstWet + endIdx].date;
+  const peak = firstWet === -1 ? 0 : Math.max(...nowcast.slice(firstWet, endIdx === -1 ? undefined : firstWet + endIdx).map(r => r.mm));
+  let txt;
+  if (firstWet === -1) {
+    txt = moving ? `De komende 2 uur blijft het droog. Buien in de buurt trekken naar het ${towardWord(motion)}.`
+      : `De komende 2 uur blijft het droog bij jou.`;
+  } else if (wetNow) {
+    txt = `${rainNow(nowcast[0].mm)}. ` + (end ? `Om <i>${fmtTime(end)}</i> is de bui voorbij` : `Dat houdt voorlopig aan`) +
+      (moving ? `; hij trekt naar het ${towardWord(motion)}.` : ".");
+  } else {
+    const start = nowcast[firstWet].date;
+    txt = (moving ? `Er komt een bui uit het ${fromWord(motion)} aan. ` : "") +
+      `Om <i>${fmtTime(start)}</i> begint het ${rainVerb(peak)}` + (end ? `, om ${fmtTime(end)} is het weer droog.` : `, en dat houdt even aan.`);
+    if (moving) drawPath(start);
+  }
+  $("storyText").innerHTML = txt;
+}
+
+// Stippellijn van waar de bui nu is naar jou, met tijden per kwartier
+function drawPath(arrival) {
+  const mins = (arrival - Date.now()) / 60000;
+  if (mins < 5) return;
+  const [hx, hy] = toPix(pos.lat, pos.lon);
+  const at = m => toLatLng(hx - motion.dx * (mins - m) / 30, hy - motion.dy * (mins - m) / 30);   // plek van de bui op minuut m
+  const pts = [], labels = [];
+  for (let m = 0; m < mins - 4; m += 15) {
+    pts.push(at(m));
+    labels.push([at(m), m === 0 ? "nu" : fmtTime(new Date(Date.now() + m * 60000))]);
+  }
+  pts.push([pos.lat, pos.lon]);
+  const color = getComputedStyle(document.body).getPropertyValue("--text").trim();
+  const g = L.layerGroup();
+  L.polyline(pts, { color, weight: 3, dashArray: "1 9", lineCap: "round", opacity: .85, interactive: false }).addTo(g);
+  labels.forEach(([ll, t], i) => {
+    L.circleMarker(ll, { radius: i ? 4 : 6, color, weight: 2, fillColor: i ? "#fff" : color, fillOpacity: 1, interactive: false }).addTo(g);
+    L.marker(ll, { interactive: false, icon: L.divIcon({ className: "path-label", html: t, iconSize: [60, 16], iconAnchor: [-8, 18] }) }).addTo(g);
+  });
+  L.marker([pos.lat, pos.lon], { interactive: false, icon: L.divIcon({ className: "path-label", html: fmtTime(arrival),
+    iconSize: [60, 16], iconAnchor: [-16, 8] }) }).addTo(g);
+  pathLayer = g.addTo(map);
+  // Kaart zo zetten dat het hele pad te zien is (tenzij je zelf al geschoven of gezoomd hebt)
+  if (!userMovedMap && tab === "radarPanel") {
+    fittingMap = true;
+    map.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [40, 70], paddingBottomRight: [40, ($("story").offsetHeight || 120) + 30], maxZoom: 11 });
+    setTimeout(() => fittingMap = false, 400);
+  }
+}
 
 // ---------- Instellingen ----------
 // Algemene voorkeuren staan in de pagina (localStorage); het regenalarm in Android (NatBridge).
@@ -1352,6 +1541,8 @@ async function setPosition(lat, lon, name, own = false, remember = false) {
   pos = { lat, lon, name, own };
   if (own) bridgeLocation(lat, lon, name || "");
   marker.setLatLng([lat, lon]);
+  userMovedMap = false;
+  refreshMotion();
   const icon = own ? "📍" : "📌";
   $("place").textContent = `${icon} ${name || `${lat.toFixed(2)}, ${lon.toFixed(2)}`}`;
   loadAll();
