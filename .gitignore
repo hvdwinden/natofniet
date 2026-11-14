@@ -1,0 +1,14 @@
+# Builds en lokale instellingen
+*.apk
+*.aab
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+.claude/
+
+# Uploadsleutel voor Google Play: NOOIT committen
+android/keystore/
+*.jks
+*.keystore
+keystore.properties
