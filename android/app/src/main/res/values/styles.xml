@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="AppTheme" parent="android:Theme.Material.NoActionBar">
+    <!-- Licht thema; in donkere modus geldt values-night. De WebView leidt hier "prefers-color-scheme" van af. -->
+    <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/bg</item>
         <item name="android:statusBarColor">@color/bg</item>
         <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
-    <color name="bg">#0F172A</color>
-    <color name="sky">#38BDF8</color>
+    <color name="bg">#F5F2EA</color>
+    <color name="iconbg">#F5F2EA</color>
+    <color name="sky">#2F6BFF</color>
 </resources>

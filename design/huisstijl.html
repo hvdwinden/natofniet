@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nat of niet? – Huisstijlvoorstellen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e6df; color: #1b1b1b; font: 15px/1.5 Inter, system-ui, sans-serif; }
+  .page { max-width: 1240px; margin: 0 auto; padding: 36px 20px 60px; }
+  h1 { font: 800 34px/1.1 "Bricolage Grotesque", sans-serif; margin: 0 0 6px; }
+  .lead { color: #555; max-width: 760px; margin: 0 0 30px; }
+  .logo-row { display: flex; gap: 28px; align-items: center; flex-wrap: wrap; background: #fff; border-radius: 18px; padding: 22px 26px; margin-bottom: 34px; }
+  .logo-row p { margin: 0; color: #555; max-width: 520px; font-size: 14px; }
+  .dirs { display: grid; grid-template-columns: repeat(auto-fit, minmax(370px, 1fr)); gap: 26px; }
+  .dir { background: #fff; border-radius: 22px; padding: 22px 20px 24px; }
+  .dir h2 { margin: 0; font: 800 24px/1.1 "Bricolage Grotesque", sans-serif; }
+  .dir .tag { color: #666; margin: 4px 0 14px; font-size: 14px; }
+  .swatches { display: flex; gap: 6px; margin: 10px 0 6px; }
+  .swatches span { flex: 1; height: 34px; border-radius: 8px; position: relative; }
+  .swatches span i { position: absolute; bottom: -18px; left: 0; font: 10px/1 ui-monospace, monospace; color: #777; font-style: normal; }
+  .type { margin: 26px 0 16px; font-size: 13px; color: #555; }
+  .phone { width: 340px; height: 700px; margin: 0 auto; border-radius: 38px; overflow: hidden; position: relative;
+    box-shadow: 0 0 0 9px #111, 0 18px 40px rgba(0,0,0,.25); }
+  .dir ul { margin: 22px 0 0; padding-left: 18px; font-size: 14px; color: #333; }
+  .dir li { margin: 5px 0; }
+  .ideas { background: #fff; border-radius: 22px; padding: 24px 26px; margin-top: 30px; }
+  .ideas h2 { font: 800 24px/1.1 "Bricolage Grotesque", sans-serif; margin: 0 0 12px; }
+  .ideas ol { padding-left: 20px; margin: 0; }
+  .ideas li { margin: 8px 0; }
+  .sb { height: 30px; display: flex; justify-content: space-between; align-items: center; padding: 0 22px; font: 600 12px Inter, sans-serif; }
+
+  /* ===== A: Helder ===== */
+  .A { background: #F5F2EA; color: #14213D; font-family: Inter, sans-serif; }
+  .A .top { display: flex; justify-content: space-between; align-items: center; padding: 6px 20px 0; font-weight: 600; font-size: 14px; }
+  .A .hero { padding: 26px 20px 10px; }
+  .A .ans { font: 800 92px/0.9 "Bricolage Grotesque", sans-serif; letter-spacing: -3px; }
+  .A .ans em { font-style: normal; color: #FFB703; }
+  .A .sub { font-size: 17px; margin-top: 10px; color: #3d4a66; }
+  .A .sub b { color: #2F6BFF; }
+  .A .card { background: #fff; margin: 12px 14px; border-radius: 20px; padding: 14px 16px; box-shadow: 0 1px 0 rgba(20,33,61,.06); }
+  .A .card h4 { margin: 0 0 8px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #8a93a6; }
+  .A .best { display: flex; align-items: center; gap: 12px; background: #14213D; color: #fff; }
+  .A .best .big { font: 800 26px/1 "Bricolage Grotesque", sans-serif; }
+  .A .best small { color: #b9c3d9; display: block; font-size: 12px; margin-top: 3px; }
+  .A nav { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-around; padding: 10px 0 18px; background: #fff; font-size: 11px; color: #8a93a6; }
+  .A nav b { color: #14213D; }
+
+  /* ===== B: Regenklok ===== */
+  .B { background: radial-gradient(120% 70% at 50% 0%, #17323a 0%, #0b161a 70%); color: #E6F4F1; font-family: "Space Grotesk", sans-serif; }
+  .B .top { display: flex; justify-content: space-between; padding: 6px 20px; font-size: 14px; color: #9fb8b3; }
+  .B .dial { display: block; margin: 6px auto 0; }
+  .B .msg { text-align: center; margin-top: -4px; }
+  .B .msg .k { font-size: 30px; font-weight: 700; }
+  .B .msg .k span { color: #FF7A59; }
+  .B .msg p { margin: 4px 24px; color: #9fb8b3; font-size: 14px; }
+  .B .chips { display: flex; gap: 8px; justify-content: center; margin: 16px 0; }
+  .B .chips div { border: 1px solid #23434b; border-radius: 999px; padding: 6px 12px; font-size: 13px; color: #cfe5e1; }
+  .B .row { display: flex; gap: 10px; padding: 0 14px; }
+  .B .tile { flex: 1; background: rgba(255,255,255,.05); border: 1px solid #1f3a41; border-radius: 18px; padding: 12px; font-size: 12px; color: #9fb8b3; }
+  .B .tile b { display: block; font-size: 20px; color: #E6F4F1; margin-top: 4px; }
+  .B nav { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; background: #13262b; border: 1px solid #23434b; border-radius: 999px; padding: 6px; }
+  .B nav span { padding: 8px 14px; border-radius: 999px; font-size: 13px; color: #9fb8b3; }
+  .B nav span.on { background: #5EEAD4; color: #08201c; font-weight: 700; }
+
+  /* ===== C: Hollandse lucht ===== */
+  .C { background: linear-gradient(180deg, #8C9AAE 0%, #B7C1CE 46%, #E4E7EC 100%); color: #1d2533; font-family: Inter, sans-serif; }
+  .C .top { display: flex; justify-content: space-between; padding: 6px 20px; font-size: 14px; font-weight: 500; }
+  .C .say { padding: 30px 22px 6px; font: 600 33px/1.13 Fraunces, serif; letter-spacing: -.5px; }
+  .C .say i { font-style: italic; color: #2b3f8f; }
+  .C .meta { padding: 0 22px; font-size: 14px; color: #3c4658; }
+  .C .glass { background: rgba(255,255,255,.55); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,.6); margin: 14px; border-radius: 22px; padding: 14px 16px; }
+  .C .glass h4 { margin: 0 0 8px; font: 600 15px Fraunces, serif; }
+  .C .words { display: flex; justify-content: space-between; font-size: 11px; color: #4b5568; margin-top: 6px; }
+  .C .hours { display: flex; justify-content: space-between; font-size: 12px; text-align: center; }
+  .C .hours b { display: block; font-size: 15px; margin-top: 2px; }
+  .C nav { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-around; padding: 12px 0 18px; font: 500 12px Inter, sans-serif; color: #4b5568; background: rgba(255,255,255,.6); backdrop-filter: blur(8px); }
+  .C nav b { color: #1d2533; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Nat of niet? — eigen gezicht</h1>
+  <p class="lead">Drie richtingen die bewust wégblijven van het donkerblauwe tabbladen-scherm van Buienalarm.
+    Alle drie gaan uit van hetzelfde idee: <b>de app beantwoordt eerst de vraag uit de naam</b>, en pas daarna komen grafieken en kaarten.
+    De schermen tonen dezelfde situatie: Delft, 14:20, droog tot 15:40, daarna lichte regen.</p>
+
+  <div class="logo-row">
+    <svg width="74" height="74" viewBox="0 0 100 100" aria-label="Logo">
+      <path d="M50 8 C50 8 18 46 18 66 a32 32 0 0 0 64 0 C82 46 50 8 50 8 Z" fill="none" stroke="#14213D" stroke-width="6"/>
+      <clipPath id="half"><rect x="0" y="0" width="50" height="100"/></clipPath>
+      <path clip-path="url(#half)" d="M50 8 C50 8 18 46 18 66 a32 32 0 0 0 64 0 C82 46 50 8 50 8 Z" fill="#2F6BFF"/>
+    </svg>
+    <svg width="240" height="66" viewBox="0 0 240 66" aria-label="Woordmerk">
+      <text x="0" y="44" font-family="Bricolage Grotesque" font-weight="800" font-size="44" fill="#14213D" letter-spacing="-1.5">Nat of niet</text>
+      <path d="M208 14 c10 0 16 6 16 13 c0 8 -10 9 -10 16" fill="none" stroke="#14213D" stroke-width="6" stroke-linecap="round"/>
+      <path d="M214 47 c0 0 -5 6 -5 9 a5 5 0 0 0 10 0 c0 -3 -5 -9 -5 -9z" fill="#2F6BFF"/>
+    </svg>
+    <p><b>Beeldmerk: de halve druppel.</b> Half gevuld, half leeg: nat óf niet. Hij werkt als app-icoon, meldingsicoon en laadanimatie
+      (de druppel loopt vol). In het woordmerk is de punt van het vraagteken een druppel. Het merk past bij alle drie de richtingen;
+      alleen de kleuren wisselen.</p>
+  </div>
+
+  <div class="dirs">
+    <!-- ================= A ================= -->
+    <section class="dir">
+      <h2>A · Helder</h2>
+      <div class="tag">Licht, warm papier, het antwoord in koeienletters. Direct en Hollands nuchter.</div>
+      <div class="swatches"><span style="background:#F5F2EA"><i>#F5F2EA</i></span><span style="background:#14213D"><i>#14213D</i></span><span style="background:#2F6BFF"><i>#2F6BFF</i></span><span style="background:#FFB703"><i>#FFB703</i></span><span style="background:#E85D4A"><i>#E85D4A</i></span></div>
+      <div class="type">Bricolage Grotesque (koppen) + Inter (tekst)</div>
+      <div class="phone A">
+        <div class="sb"><span>14:20</span><span>●●● 5G ▮</span></div>
+        <div class="top"><span>◐ Delft ▾</span><span>⚙︎</span></div>
+        <div class="hero">
+          <div class="ans">Droog<em>.</em></div>
+          <div class="sub">Tot <b>15:40</b>. Daarna lichte regen, zo'n 40 minuten.</div>
+        </div>
+        <div class="card">
+          <h4>Komende 2 uur</h4>
+          <svg id="bars" width="282" height="74"></svg>
+        </div>
+        <div class="card best">
+          <div style="font-size:30px">🚲</div>
+          <div><div class="big">Ga vóór 15:30</div><small>Fietstocht van 20 min blijft dan droog</small></div>
+        </div>
+        <div class="card" style="display:flex;justify-content:space-between;font-size:13px">
+          <div>🌡 <b>9°</b><br><span style="color:#8a93a6">voelt 6°</span></div>
+          <div>💨 <b>ZW 3</b><br><span style="color:#8a93a6">Beaufort</span></div>
+          <div>☀️ <b>UV 1</b><br><span style="color:#8a93a6">laag</span></div>
+          <div>🌳 <b>Laag</b><br><span style="color:#8a93a6">pollen</span></div>
+        </div>
+        <nav><b>● Nu</b><span>Radar</span><span>Week</span><span>Meldingen</span></nav>
+      </div>
+      <ul>
+        <li>Eén scrollend scherm i.p.v. drie tabbladen; navigatie onderaan.</li>
+        <li>Grafiek wordt een strook van 24 staafjes (per 5 min), leesbaar in één blik.</li>
+        <li>Nieuw: <b>"Wanneer kan ik gaan?"</b> – kies je reisduur, de app zoekt het droogste vertrekmoment.</li>
+        <li>Kleur volgt het antwoord: geel accent bij droog, blauw bij nat.</li>
+      </ul>
+    </section>
+
+    <!-- ================= B ================= -->
+    <section class="dir">
+      <h2>B · Regenklok</h2>
+      <div class="tag">Donker maar niet "Buienalarm-blauw": nachtgroen met mint en koraal. Een eigen, herkenbaar beeld.</div>
+      <div class="swatches"><span style="background:#0B161A"><i>#0B161A</i></span><span style="background:#17323A"><i>#17323A</i></span><span style="background:#5EEAD4"><i>#5EEAD4</i></span><span style="background:#FF7A59"><i>#FF7A59</i></span><span style="background:#E6F4F1"><i>#E6F4F1</i></span></div>
+      <div class="type">Space Grotesk (alles)</div>
+      <div class="phone B">
+        <div class="sb"><span>14:20</span><span>●●● 5G ▮</span></div>
+        <div class="top"><span>◐ Delft</span><span>⌕ &nbsp; ⚙︎</span></div>
+        <svg id="dial" class="dial" width="270" height="270" viewBox="0 0 270 270"></svg>
+        <div class="msg">
+          <div class="k">Nog <span>80 min</span> droog</div>
+          <p>Om 15:40 begint lichte regen, rond 16:20 weer droog.</p>
+        </div>
+        <div class="chips"><div>☂︎ Paraplu mee</div><div>🔔 Seintje 15:25</div></div>
+        <div class="row">
+          <div class="tile">Temperatuur<b>9°</b></div>
+          <div class="tile">Wind<b>ZW 3</b></div>
+          <div class="tile">Vandaag<b>3 mm</b></div>
+        </div>
+        <nav><span class="on">Klok</span><span>Radar</span><span>Week</span></nav>
+      </div>
+      <ul>
+        <li><b>De regenklok</b>: de komende 2 uur als wijzerplaat. Regen staat als mint boog op de rand, een wijzer op nu. Je leest het af zoals een horloge.</li>
+        <li>Tik op de klok → hij wordt 24 uur (de wijzerplaat schuift naar uren).</li>
+        <li>Radar als kaart op volledig scherm, met de klok als kleine overlay.</li>
+        <li>Zwevende navigatie als "pil" onderaan.</li>
+      </ul>
+    </section>
+
+    <!-- ================= C ================= -->
+    <section class="dir">
+      <h2>C · Hollandse lucht</h2>
+      <div class="tag">De achtergrond ís het weer: kleur en verloop volgen bewolking en tijd van de dag. Praat als een mens.</div>
+      <div class="swatches"><span style="background:linear-gradient(#8C9AAE,#E4E7EC)"><i>grijs</i></span><span style="background:linear-gradient(#5BA4F5,#CFE6FF)"><i>zon</i></span><span style="background:linear-gradient(#1F2A44,#5A6B8C)"><i>avond</i></span><span style="background:#2B3F8F"><i>#2B3F8F</i></span><span style="background:#1D2533"><i>#1D2533</i></span></div>
+      <div class="type">Fraunces (koppen, serif) + Inter (tekst)</div>
+      <div class="phone C">
+        <div class="sb"><span>14:20</span><span>●●● 5G ▮</span></div>
+        <div class="top"><span>Delft ▾</span><span>⚙︎</span></div>
+        <div class="say">Nog even droog. Om 15:40 begint het te <i>miezeren</i>.</div>
+        <div class="meta">9° · voelt als 6° · zuidwest, matig</div>
+        <div class="glass">
+          <h4>Regen per 5 minuten</h4>
+          <svg id="wave" width="276" height="70"></svg>
+          <div class="words"><span>nu</span><span>15:00</span><span>15:40 miezer</span><span>16:20</span></div>
+        </div>
+        <div class="glass">
+          <h4>Straks</h4>
+          <div class="hours">
+            <div>15u<b>☁︎ 9°</b></div><div>16u<b>🌧 8°</b></div><div>17u<b>☁︎ 8°</b></div><div>18u<b>🌙 7°</b></div><div>19u<b>🌙 6°</b></div>
+          </div>
+        </div>
+        <nav><b>Vandaag</b><span>Kaart</span><span>Week</span><span>Instellingen</span></nav>
+      </div>
+      <ul>
+        <li>Kop in gewone taal met Nederlandse weerwoorden: <i>miezer, bui, plensbui, hoosbui</i>.</li>
+        <li>Achtergrond-verloop wisselt met het weer en de tijd van de dag (ochtend, zon, grijs, avond).</li>
+        <li>Grafiek als zachte golf in plaats van harde blokken; de golflijnen laten zien hoe hard het regent.</li>
+        <li>Glazen kaarten; het meest "eigen" en sfeervol, minst technisch.</li>
+      </ul>
+    </section>
+  </div>
+
+  <div class="ideas">
+    <h2>Lay-outideeën die bij elke richting passen</h2>
+    <ol>
+      <li><b>Antwoord eerst.</b> Bovenaan één zin of woord ("Droog." / "Over 25 min nat"). Cijfers zoals mm/u en temperatuur komen daaronder.</li>
+      <li><b>Eén startscherm dat je scrolt</b> in plaats van Grafiek/Radar/Weer-tabbladen. De radar opent als volledig scherm vanuit een kleine kaartpreview.</li>
+      <li><b>"Wanneer kan ik gaan?"</b> Kies een duur (10/20/45 min), dan krijg je het droogste vertrekmoment met een seintje. Dat heeft Buienalarm niet.</li>
+      <li><b>Navigatie onderaan</b> (duimbereik op je Samsung): Nu · Radar · Week · Meldingen. Instellingen gaan naar Meldingen, want daar draaien die vooral om.</li>
+      <li><b>Widget voor je startscherm</b> in dezelfde stijl: halve druppel + "Droog tot 15:40".</li>
+      <li><b>Eigen meldingstoon en -tekst</b> met persoonlijkheid ("Jas aan, over 10 min plenst het").</li>
+    </ol>
+  </div>
+</div>
+
+<script>
+// Gedeelde voorbeelddata: 24 waarden (mm/u) per 5 minuten vanaf 14:20
+const rain = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.1,0.4,0.8,1.1,0.9,0.6,0.3,0.1];
+const ns = "http://www.w3.org/2000/svg";
+const el = (tag, at, parent) => { const e = document.createElementNS(ns, tag); for (const k in at) e.setAttribute(k, at[k]); parent.appendChild(e); return e; };
+
+// A: staafjesstrook
+(() => {
+  const s = document.getElementById("bars"), w = 282, bw = w / 24;
+  rain.forEach((v, i) => {
+    const h = v > 0 ? 8 + v * 40 : 4;
+    el("rect", { x: i * bw + 1.5, y: 56 - h, width: bw - 3, height: h, rx: 3, fill: v > 0 ? "#2F6BFF" : "#E4E1D8" }, s);
+  });
+  [["nu", 0], ["14:40", 4], ["15:20", 12], ["16:00", 20]].forEach(([t, i]) =>
+    el("text", { x: i * bw + 1, y: 72, "font-size": 11, fill: "#8a93a6", "font-family": "Inter" }, s).textContent = t);
+})();
+
+// B: regenklok
+(() => {
+  const s = document.getElementById("dial"), cx = 135, cy = 135, R = 104;
+  el("circle", { cx, cy, r: R, fill: "none", stroke: "#1c353c", "stroke-width": 22 }, s);
+  rain.forEach((v, i) => {
+    if (!v) return;
+    const a0 = (i / 24) * 2 * Math.PI - Math.PI / 2, a1 = ((i + 1) / 24) * 2 * Math.PI - Math.PI / 2;
+    const r = R, w = 10 + v * 14;
+    const p = (a, rr) => [cx + rr * Math.cos(a), cy + rr * Math.sin(a)];
+    const [x0, y0] = p(a0, r), [x1, y1] = p(a1, r);
+    el("path", { d: `M${x0} ${y0} A${r} ${r} 0 0 1 ${x1} ${y1}`, stroke: "#5EEAD4", "stroke-width": w, fill: "none", opacity: .35 + v * .5 }, s);
+  });
+  for (let m = 0; m < 24; m++) {
+    const a = (m / 24) * 2 * Math.PI - Math.PI / 2, big = m % 6 === 0;
+    const r1 = R - 18, r2 = big ? R - 30 : R - 24;
+    el("line", { x1: cx + r1 * Math.cos(a), y1: cy + r1 * Math.sin(a), x2: cx + r2 * Math.cos(a), y2: cy + r2 * Math.sin(a),
+      stroke: big ? "#9fb8b3" : "#2c4a52", "stroke-width": big ? 2 : 1.4, "stroke-linecap": "round" }, s);
+  }
+  [["nu", 0], ["14:50", 6], ["15:20", 12], ["15:50", 18]].forEach(([t, m]) => {
+    const a = (m / 24) * 2 * Math.PI - Math.PI / 2, r = R - 44;
+    el("text", { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) + 4, "text-anchor": "middle", "font-size": 12, fill: "#9fb8b3", "font-family": "Space Grotesk" }, s).textContent = t;
+  });
+  el("line", { x1: cx, y1: cy, x2: cx, y2: cy - R + 6, stroke: "#FF7A59", "stroke-width": 3, "stroke-linecap": "round" }, s);
+  el("circle", { cx, cy, r: 6, fill: "#FF7A59" }, s);
+  el("circle", { cx, cy: cy - R, r: 7, fill: "#FF7A59", stroke: "#0b161a", "stroke-width": 3 }, s);
+})();
+
+// C: zachte golf
+(() => {
+  const s = document.getElementById("wave"), w = 276, h = 70, base = 56;
+  const pts = rain.map((v, i) => [i / 23 * w, base - v * 38]);
+  let d = `M0 ${base}`;
+  pts.forEach(([x, y], i) => {
+    if (!i) { d += ` L${x} ${y}`; return; }
+    const [px, py] = pts[i - 1], mx = (px + x) / 2;
+    d += ` C${mx} ${py} ${mx} ${y} ${x} ${y}`;
+  });
+  el("path", { d: d + ` L${w} ${base} Z`, fill: "rgba(43,63,143,.25)" }, s);
+  el("path", { d, fill: "none", stroke: "#2B3F8F", "stroke-width": 2.5 }, s);
+  el("line", { x1: 0, y1: base, x2: w, y2: base, stroke: "rgba(29,37,51,.25)", "stroke-dasharray": "2 4" }, s);
+  el("circle", { cx: 2, cy: base, r: 4, fill: "#1d2533" }, s);
+})();
+</script>
+</body>
+</html>

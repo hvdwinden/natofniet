@@ -146,6 +146,7 @@ public class MainActivity extends Activity {
         if (path.endsWith(".png")) return "image/png";
         if (path.endsWith(".svg")) return "image/svg+xml";
         if (path.endsWith(".json")) return "application/json";
+        if (path.endsWith(".woff2")) return "font/woff2";
         return "application/octet-stream";
     }
 
@@ -287,6 +288,24 @@ public class MainActivity extends Activity {
             // daarom openen we de app-info, waar je onder Batterij "Onbeperkt" kiest.
             startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                     Uri.parse("package:" + getPackageName())));
+        }
+
+        /** Kleur van de systeembalken volgt het gekozen thema; light = donkere pictogrammen. */
+        @JavascriptInterface
+        public void setBars(String color, boolean light) {
+            runOnUiThread(() -> {
+                try {
+                    int c = android.graphics.Color.parseColor(color);
+                    getWindow().setStatusBarColor(c);
+                    getWindow().setNavigationBarColor(c);
+                    getWindow().getDecorView().setBackgroundColor(c);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        int mask = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                                | android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+                        getWindow().getInsetsController().setSystemBarsAppearance(light ? mask : 0, mask);
+                    }
+                } catch (IllegalArgumentException ignored) { }
+            });
         }
 
         @JavascriptInterface
