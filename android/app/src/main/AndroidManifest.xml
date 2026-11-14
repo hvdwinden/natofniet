@@ -31,6 +31,15 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+        <receiver
+            android:name=".RainWidget"
+            android:exported="false"
+            android:label="Nat of niet?">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_info" />
+        </receiver>
         <service
             android:name=".RainJobService"
             android:permission="android.permission.BIND_JOB_SERVICE"

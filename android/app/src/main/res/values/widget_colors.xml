@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget in de kleuren van het thema Helder (licht) -->
+<resources>
+    <color name="w_bg">#F5F2EA</color>
+    <color name="w_text">#14213D</color>
+    <color name="w_muted">#4F5B78</color>
+    <color name="w_faint">#8A93A6</color>
+    <color name="w_accent">#2F6BFF</color>
+    <color name="w_dot">#FFB703</color>
+    <color name="w_stub">#E4E1D8</color>
+    <color name="w_r1">#A9C3FF</color>
+    <color name="w_r2">#2F6BFF</color>
+    <color name="w_r3">#1C3FBF</color>
+    <color name="w_r4">#7C3AED</color>
+    <string name="widget_desc">Droog of nat de komende 2 uur, met regen per 5 minuten</string>
+</resources>

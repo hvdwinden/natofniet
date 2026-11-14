@@ -7,7 +7,7 @@ Alles wat je nodig hebt voor de Play Console. De bestanden staan in deze map (`s
 | App-bundel (uploaden) | `../android/app/build/outputs/bundle/release/app-release.aab` |
 | App-icoon 512×512 | `icon-512.png` |
 | Feature graphic 1024×500 | `feature-1024x500.png` |
-| Telefoon-schermafbeeldingen | `screenshots/1.png` t/m `5.png` (1080×2080) |
+| Telefoon-schermafbeeldingen | `screenshots/1.png` t/m `6.png` (1118×2235): Nu (Helder), Regenklok (Nacht), Radar, Week, widget, instellingen |
 | Privacybeleid | `../docs/privacy.html`, online op https://hvdwinden.github.io/natofniet/privacy.html |
 
 ## ⚠️ Uploadsleutel – maak een back-up
@@ -33,30 +33,36 @@ resetten (met Play App Signing), maar dat kost tijd.
 
 **Korte beschrijving** (max 80):
 ```
-Gaat het regenen? Regen per 5 minuten, radar en een seintje vóór de bui.
+Droog of nat? Regen per 5 minuten, radar, widget en een seintje vóór de bui.
 ```
 
 **Volledige beschrijving** (max 4000):
 ```
-Nat of niet? vertelt je in één oogopslag of je droog blijft.
+Nat of niet? geeft eerst gewoon antwoord: Droog. Of: Nat. Daarna pas de details.
 
 ☔ REGEN OP DE MINUUT
-Zie per 5 minuten hoeveel regen er de komende 2 uur valt op jouw plek, of bekijk de komende 24 uur. Sleep over de grafiek om precies te zien wat er om 17:35 gebeurt.
+Zie per 5 minuten hoeveel regen er de komende 2 uur valt op jouw plek: als staafjes, als golf of op de regenklok. Of bekijk de komende 24 uur.
+
+🚲 WANNEER KAN IK GAAN?
+Kies hoe lang je onderweg bent (10, 20, 30 of 45 minuten) en de app zoekt het moment waarop je droog aankomt.
+
+📱 WIDGET
+Zet Nat of niet? op je startscherm en zie zonder de app te openen of het droog blijft.
 
 🗺️ RADAR
 Bekijk hoe de buien de komende 2 uur over Nederland en België trekken.
 
 🔔 REGENALARM
-Krijg een melding voordat het gaat regenen, met hoe hard het wordt en wanneer het weer droog is. Of juist een seintje wanneer de bui voorbij is. Jij kiest hoeveel minuten vooraf.
+Krijg een melding voordat het gaat regenen, met hoe hard het wordt en wanneer het weer droog is. Of juist een seintje wanneer de bui voorbij is.
 
 🌤️ WEER EN 14-DAAGSE
 Temperatuur, wind, regenkans per uur en een weekgrafiek voor de komende 14 dagen.
 
 ☀️ OCHTENDMELDINGEN
-Elke ochtend op jouw tijd: het weerbericht voor vandaag, een UV-waarschuwing en pollenalarm voor bomen, gras of kruiden.
+Elke ochtend op jouw tijd: het weerbericht, een UV-waarschuwing en pollenalarm.
 
-📍 ELKE PLEK
-Gebruik je huidige locatie of zoek een andere plaats.
+🎨 JOUW STIJL
+Drie thema's: Helder, Nacht en Hollandse lucht, waarbij de achtergrond meekleurt met het weer. Of laat de app je telefoon volgen.
 
 Geen account, geen advertenties, geen tracking.
 
@@ -102,3 +108,19 @@ Alle andere typen (persoonlijke info, app-activiteit, apparaat-ID's enz.): niet 
   `cd android && JAVA_HOME=/opt/android-studio/jbr ./gradlew bundleRelease`.
 - Na publicatie krijgt de Play-versie de handtekening van Google. Een zelf geïnstalleerde test-APK moet je
   dan eerst verwijderen voordat je de Play-versie kunt installeren.
+
+
+## Uitnodiging voor testers
+
+Stuur dit naar je testers (vervang [LINK] door de testlink uit de Play Console, onder *Gesloten testen → Testers*):
+
+```
+Hoi! Ik heb een eigen regen-app gemaakt: Nat of niet?
+Voordat hij in de Play Store mag, moeten 12 mensen hem 14 dagen testen. Help je mee?
+
+1. Open deze link op je Android-telefoon: [LINK]
+2. Tik op "Tester worden" en daarna op "Downloaden in Google Play"
+3. Installeer de app en laat hem 14 dagen staan (je hoeft er niets bijzonders mee te doen)
+
+Gebruik je hem en valt je iets op? Laat het me weten. Dank je wel!
+```

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget in de kleuren van het thema Nacht (donker) -->
+<resources>
+    <color name="w_bg">#0F2126</color>
+    <color name="w_text">#E6F4F1</color>
+    <color name="w_muted">#9FB8B3</color>
+    <color name="w_faint">#5E7B76</color>
+    <color name="w_accent">#5EEAD4</color>
+    <color name="w_dot">#FF7A59</color>
+    <color name="w_stub">#1F3A41</color>
+    <color name="w_r1">#99F6E4</color>
+    <color name="w_r2">#5EEAD4</color>
+    <color name="w_r3">#FDE68A</color>
+    <color name="w_r4">#FF7A59</color>
+</resources>

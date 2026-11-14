@@ -53,7 +53,8 @@ public final class RainCheck {
     /** Start of stop de periodieke controle, afhankelijk van de instellingen. */
     static void schedule(Context c) {
         JobScheduler js = c.getSystemService(JobScheduler.class);
-        if (!anyAlertOn(c)) { js.cancel(JOB_ID); return; }
+        // Nodig voor het regenalarm en/of om de widget op het startscherm actueel te houden
+        if (!anyAlertOn(c) && !RainWidget.hasWidgets(c)) { js.cancel(JOB_ID); return; }
         JobInfo job = new JobInfo.Builder(JOB_ID, new ComponentName(c, RainJobService.class))
                 .setPeriodic(15 * 60_000L)                    // minimum dat Android toestaat
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)

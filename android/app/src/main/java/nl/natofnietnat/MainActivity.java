@@ -159,6 +159,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         refreshWebSettings();
+        new Thread(() -> RainWidget.updateAll(getApplicationContext())).start();   // widget gelijk met de app
     }
 
     private boolean settingsIfDenied = false;
@@ -263,6 +264,7 @@ public class MainActivity extends Activity {
         public void setLocation(double lat, double lon, String name) {
             prefs().edit().putFloat("lat", (float) lat).putFloat("lon", (float) lon)
                     .putString("name", name == null || name.isEmpty() ? "je locatie" : name).apply();
+            new Thread(() -> RainWidget.updateAll(getApplicationContext())).start();
         }
 
         @JavascriptInterface

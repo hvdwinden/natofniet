@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Nat of niet?</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="lib/leaflet/leaflet.css">
 <style>
   /* ---------- Lettertypen (lokaal, geen verbinding met Google) ---------- */
   @font-face { font-family: "Bricolage"; src: url(fonts/bricolage.woff2) format("woff2"); font-weight: 600 800; font-display: swap; }
@@ -114,6 +114,17 @@
   .toggle { display: flex; background: var(--line2); border-radius: 10px; padding: 3px; flex-shrink: 0; }
   .toggle button { background: none; border: 0; color: var(--muted); padding: 6px 13px; border-radius: 8px; font: 600 .9rem var(--body); cursor: pointer; }
   .toggle button.active { background: var(--accent); color: var(--accent-ink); }
+  .trip .card-head { flex-wrap: wrap; row-gap: 8px; }
+  .trip .card-head h2 { white-space: nowrap; }
+  .trip-main { font: 700 1.6rem/1.15 var(--head); margin: 4px 2px 2px; }
+  .trip-main.ok { color: var(--text); }
+  .trip-sub { color: var(--muted); font-size: .92rem; margin: 2px 2px 6px; line-height: 1.4; }
+  body[data-theme="helder"] .trip { background: #14213D; color: #fff; }
+  body[data-theme="helder"] .trip .card-head h2 { color: #B9C3D9; }
+  body[data-theme="helder"] .trip .trip-sub { color: #B9C3D9; }
+  body[data-theme="helder"] .trip .toggle { background: rgba(255,255,255,.1); }
+  body[data-theme="helder"] .trip .toggle button { color: #B9C3D9; }
+  body[data-theme="helder"] .trip .toggle button.active { background: #FFB703; color: #14213D; }
   .chart-wrap { height: 210px; position: relative; touch-action: none; cursor: ew-resize; }
   .chart-wrap.clock { height: auto; aspect-ratio: 1; max-height: 330px; cursor: grab; }
   .chart-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -250,6 +261,16 @@
       </div>
       <div class="chart-wrap" id="chartWrap"><canvas id="chart"></canvas></div>
     </div>
+    <div class="card trip" id="tripCard" hidden>
+      <div class="card-head">
+        <h2>Wanneer kan ik gaan?</h2>
+        <div class="toggle small" id="tripToggle">
+          <button data-min="10">10m</button><button data-min="20">20m</button><button data-min="30">30m</button><button data-min="45">45m</button>
+        </div>
+      </div>
+      <div class="trip-main" id="tripMain">–</div>
+      <div class="trip-sub" id="tripSub"></div>
+    </div>
     <div class="card" id="nuStats"></div>
     <div class="source" id="source"></div>
   </section>
@@ -296,7 +317,7 @@
     <h1>Locatie kiezen</h1>
   </div>
   <div class="s-body">
-    <div class="search">🔎<input id="placeSearch" type="search" placeholder="Zoek een plaats of adres" autocomplete="off" enterkeyhint="search"></div>
+    <form class="search" id="placeForm" onsubmit="return false">🔎<input id="placeSearch" type="search" placeholder="Zoek een plaats of adres" autocomplete="off" enterkeyhint="search"><button type="button" class="s-link" id="placeGo">Zoek</button></form>
     <div id="placeResults"></div>
     <div class="s-head">Snel kiezen</div>
     <div class="s-card">
@@ -429,7 +450,7 @@
   </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="lib/leaflet/leaflet.js"></script>
 <script>
 const DEFAULT = { lat: 52.37, lon: 4.89, name: "Amsterdam" };
 let pos = { ...DEFAULT };
@@ -612,12 +633,14 @@ function render() {
   renderDays();
   if (!nowcast.length) {
     setVerdict("Geen verwachting", "Buienradar heeft alleen data voor Nederland en België.", "");
+    renderTrip();
     cursorT = null; updateStatsForTime(null);
     drawAll(); return;
   }
   const now = nowcast[0];
   cursorT = null;
   updateStatsForTime(null);
+  renderTrip();
 
   const firstWet = nowcast.findIndex(r => r.mm >= WET);
   const total = nowcast.reduce((s, r) => s + r.mm / 12, 0);
@@ -647,6 +670,52 @@ function render() {
   }
   drawAll();
 }
+
+// ---------- Wanneer kan ik gaan? ----------
+// Zoekt binnen de 2-uursverwachting het vertrekmoment waarop je het minst nat wordt,
+// en daarbinnen het vroegste. Regenhoeveelheid = som van mm/u × 5 min.
+function bestDeparture(data, minutes) {
+  const n = Math.round(minutes / 5);
+  if (data.length < n + 1) return null;
+  const wet = [];
+  for (let i = 0; i + n < data.length; i++) {
+    const w = data.slice(i, i + n);
+    wet.push({ i, mm: w.reduce((a, r) => a + r.mm / 12, 0), dry: w.every(r => r.mm < WET) });
+  }
+  const dry = wet.find(x => x.dry);
+  if (dry) return { ...dry, start: data[dry.i].date };
+  const least = wet.reduce((a, b) => b.mm < a.mm - 0.01 ? b : a);
+  return { ...least, start: data[least.i].date };
+}
+function renderTrip() {
+  const min = prefs.trip || 20;
+  document.querySelectorAll("#tripToggle button").forEach(b => b.classList.toggle("active", +b.dataset.min === min));
+  $("tripCard").hidden = !nowcast.length;
+  if (!nowcast.length) return;
+  const best = bestDeparture(nowcast, min);
+  if (!best) { $("tripMain").textContent = "–"; $("tripSub").textContent = ""; return; }
+  const now = nowcast[0].date;
+  const wait = Math.round((best.start - now) / 60000);
+  const firstWet = nowcast.findIndex(r => r.mm >= WET);
+  if (best.dry && wait === 0) {
+    // Hoe lang kun je nog wachten met vertrekken en toch droog blijven?
+    const n = Math.round(min / 5);
+    let last = 0;
+    while (last + 1 + n < nowcast.length && nowcast.slice(last + 1, last + 1 + n).every(r => r.mm < WET)) last++;
+    const allDry = firstWet === -1;
+    $("tripMain").textContent = "Ga nu, het blijft droog";
+    $("tripSub").textContent = allDry ? `Je ${min} minuten blijven ruim droog.`
+      : last === 0 ? `Wel meteen gaan: om ${fmtTime(nowcast[firstWet].date)} begint het te regenen.`
+      : `Vertrek uiterlijk ${fmtTime(nowcast[last].date)}; om ${fmtTime(nowcast[firstWet].date)} begint het te regenen.`;
+  } else if (best.dry) {
+    $("tripMain").textContent = `Ga om ${fmtTime(best.start)}`;
+    $("tripSub").textContent = `Over ${minsText(wait)}. Dan blijf je de hele ${min} minuten droog.`;
+  } else {
+    $("tripMain").textContent = wait === 0 ? "Nu gaan is het minst nat" : `Minst nat: om ${fmtTime(best.start)}`;
+    $("tripSub").textContent = `Helemaal droog lukt niet binnen 2 uur. Je krijgt dan zo'n ${fmtNum(Math.max(best.mm, 0.1))} mm over je heen.`;
+  }
+}
+document.querySelectorAll("#tripToggle button").forEach(b => b.onclick = () => { prefs.trip = +b.dataset.min; savePrefs(); });
 
 // Bovenste rij: waarden voor "nu" (t = null) of voor een gekozen tijdstip t (ms)
 const hourAt = t => hourly.find(h => t >= h.date.getTime() && t < h.date.getTime() + 3600e3);
@@ -950,7 +1019,7 @@ function drawClock(c, data, markerT) {
   const s = setupCanvas(c); if (!s) return null;
   const { ctx, W, H } = s;
   const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 20;
-  const t0 = data.length ? data[0].date.getTime() : Date.now(), t1 = t0 + 2 * 3600e3;
+  const t0 = data.length ? data[0].date.getTime() : Math.floor(Date.now() / 300e3) * 300e3, t1 = t0 + 2 * 3600e3;
   const ang = t => (t - t0) / (t1 - t0) * 2 * Math.PI - Math.PI / 2;
   ctx.lineCap = "butt";
   ctx.strokeStyle = tc.line2 || tc.line; ctx.lineWidth = 26;
@@ -973,7 +1042,8 @@ function drawClock(c, data, markerT) {
   ctx.font = `12px ${tc.font}`; ctx.fillStyle = tc.muted; ctx.textAlign = "center"; ctx.textBaseline = "middle";
   [0, 6, 12, 18].forEach(m => {
     const a = m / 24 * 2 * Math.PI - Math.PI / 2, rr = R - 46;
-    ctx.fillText(m ? fmtTime(new Date(t0 + m * 300e3)) : "nu", cx + rr * Math.cos(a), cy + rr * Math.sin(a));
+    // "nu" iets naast de bovenkant, zodat de wijzer er niet overheen valt
+    ctx.fillText(m ? fmtTime(new Date(t0 + m * 300e3)) : "nu", cx + rr * Math.cos(a) + (m ? 0 : 20), cy + rr * Math.sin(a));
   });
   // Wijzer
   const mt = markerT ?? t0, a = ang(Math.min(Math.max(mt, t0), t1));
@@ -1350,19 +1420,18 @@ function openPlaces() {
   setTimeout(() => $("placeSearch").focus(), 50);
 }
 
-// Zoeken via OpenStreetMap (Nominatim); even wachten na het typen om de dienst te sparen
-let searchTimer = null, searchSeq = 0;
+// Zoeken via OpenStreetMap (Nominatim). Pas zoeken bij Enter of de zoekknop:
+// Nominatim staat zoeken-tijdens-typen (autocomplete) niet toe.
+let searchSeq = 0;
 $("placeSearch").addEventListener("input", () => {
-  clearTimeout(searchTimer);
-  const q = $("placeSearch").value.trim();
-  if (q.length < 2) { $("placeResults").replaceChildren(); return; }
-  searchTimer = setTimeout(() => searchPlaces(q), 600);
+  if (!$("placeSearch").value.trim()) $("placeResults").replaceChildren();
 });
 $("placeSearch").addEventListener("keydown", e => {
-  if (e.key === "Enter") { clearTimeout(searchTimer); searchPlaces($("placeSearch").value.trim()); }
+  if (e.key === "Enter") { e.preventDefault(); $("placeSearch").blur(); searchPlaces($("placeSearch").value.trim()); }
 });
+$("placeGo").onclick = () => searchPlaces($("placeSearch").value.trim());
 async function searchPlaces(q) {
-  if (!q) return;
+  if (q.length < 2) return;
   const seq = ++searchSeq;
   const box = $("placeResults");
   box.innerHTML = `<div class="s-empty">Zoeken…</div>`;
