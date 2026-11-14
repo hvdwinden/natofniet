@@ -41,7 +41,7 @@ Droog of nat? Regen per 5 minuten, radar, widget en een seintje vóór de bui.
 Nat of niet? geeft eerst gewoon antwoord: Droog. Of: Nat. Daarna pas de details.
 
 ☔ REGEN OP DE MINUUT
-Zie per 5 minuten hoeveel regen er de komende 2 uur valt op jouw plek: als staafjes, als golf of op de regenklok. Of bekijk de komende 24 uur.
+Zie per 5 minuten hoeveel regen er de komende 2 uur valt op jouw plek, in Nederland, België en de rest van Europa: als staafjes, als golf of op de regenklok. Of bekijk de komende 24 uur.
 
 🚲 WANNEER KAN IK GAAN?
 Kies hoe lang je onderweg bent (10, 20, 30 of 45 minuten) en de app zoekt het moment waarop je droog aankomt.
@@ -50,7 +50,7 @@ Kies hoe lang je onderweg bent (10, 20, 30 of 45 minuten) en de app zoekt het mo
 Zet Nat of niet? op je startscherm en zie zonder de app te openen of het droog blijft.
 
 🗺️ RADAR
-Bekijk hoe de buien de komende 2 uur over Nederland en België trekken.
+Bekijk hoe de buien trekken, in heel Europa. De app vertelt in gewone taal waar de bui vandaan komt, wanneer hij bij jou is en tekent zijn pad op de kaart.
 
 🔔 REGENALARM
 Krijg een melding voordat het gaat regenen, met hoe hard het wordt en wanneer het weer droog is. Of juist een seintje wanneer de bui voorbij is.
@@ -66,7 +66,7 @@ Drie thema's: Helder, Nacht en Hollandse lucht, waarbij de achtergrond meekleurt
 
 Geen account, geen advertenties, geen tracking.
 
-Gegevens: Buienradar, Open-Meteo, OpenStreetMap, Kleenex pollenradar. Deze app is niet verbonden aan deze partijen.
+Gegevens: Buienradar, RainViewer, Open-Meteo, OpenStreetMap, Kleenex pollenradar. Deze app is niet verbonden aan deze partijen.
 ```
 
 **Categorie**: Weer · **Tags**: Weer, Regen, Radar

@@ -310,7 +310,7 @@
         <div class="ctrl">
           <button id="playBtn" class="round" title="Afspelen/pauzeren" aria-label="Afspelen/pauzeren">▶</button>
           <div class="seg" id="jumpSeg">
-            <button data-off="0">nu</button><button data-off="6">+30m</button><button data-off="12">+1u</button><button data-off="18">+1½u</button>
+            <button data-min="0">nu</button><button data-min="30">+30m</button><button data-min="60">+1u</button><button data-min="90">+1½u</button>
           </div>
           <span id="frameTime">--:--</span>
         </div>
@@ -478,7 +478,7 @@
     <div class="s-head">Over Nat of niet?</div>
     <div class="s-card">
       <div class="s-row"><div class="s-title" id="aboutVersion">Nat of niet?</div></div>
-      <div class="s-row"><div class="s-main"><div class="s-sub">Neerslag en radar: Buienradar<br>Pollen: Kleenex pollenradar (onofficieel), reserve Open-Meteo/CAMS<br>Weer en 24 uur/14 dagen: Open-Meteo<br>Kaart: OpenStreetMap</div></div></div>
+      <div class="s-row"><div class="s-main"><div class="s-sub">Neerslag en radar: Buienradar (Nederland en België), elders in Europa Open-Meteo en RainViewer<br>Pollen: Kleenex pollenradar (onofficieel), reserve Open-Meteo/CAMS<br>Weer en 24 uur/14 dagen: Open-Meteo<br>Kaart: OpenStreetMap</div></div></div>
     </div>
   </div>
 </div>
@@ -554,7 +554,7 @@ const LocateControl = L.Control.extend({
 });
 new LocateControl().addTo(map);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  attribution: '&copy; OpenStreetMap · Buienradar', maxZoom: 18, className: "basemap"
+  attribution: '&copy; OpenStreetMap · Buienradar · RainViewer', maxZoom: 18, className: "basemap"
 }).addTo(map);
 // Je plek is de halve druppel; hij loopt vol naarmate het op het getoonde moment bij jou regent
 const DROP = "M50 8C50 8 18 46 18 66a32 32 0 0 0 64 0C82 46 50 8 50 8Z";
@@ -572,32 +572,67 @@ map.getContainer().addEventListener("touchstart", e => { if (e.touches.length > 
 map.getContainer().addEventListener("click", e => { if (e.target.closest(".leaflet-control-zoom")) userMovedMap = true; });
 map.on("click", e => setPosition(e.latlng.lat, e.latlng.lng, null, false, true));
 
-// ---------- Data: Buienradar (2 uur) ----------
-// Waarde 0-255 → mm/u = 10^((waarde-109)/32). Tijden zijn Nederlandse tijd (HH:MM).
+// ---------- Data: regen de komende 2 uur ----------
+// Buienradar (Nederland en België): waarde 0-255 → mm/u = 10^((waarde-109)/32). Tijden zijn Nederlandse tijd (HH:MM).
 const toMm = v => v <= 0 ? 0 : Math.pow(10, (v - 109) / 32);
 
 // Volgnummers: alleen het antwoord op de laatst gestarte aanvraag telt (zie loadRadar)
 let nowcastLoadId = 0, weatherLoadId = 0;
 
+// Buiten Nederland en België (of als Buienradar niet antwoordt): Open-Meteo, een modelverwachting per kwartier.
+let nowcastSrc = "buienradar";
+async function loadBuienradarNowcast() {
+  const url = `https://gpsgadget.buienradar.nl/data/raintext?lat=${pos.lat.toFixed(2)}&lon=${pos.lon.toFixed(2)}`;
+  const res = await fetch(url, { cache: "no-store" });
+  const txt = await res.text();
+  if (!res.ok || !txt.includes("|")) throw new Error("buiten gebied");
+  const now = new Date();
+  let prev = null;
+  const out = txt.trim().split(/\r?\n/).map(line => {
+    const [v, t] = line.split("|");
+    const [h, m] = t.trim().split(":").map(Number);
+    const d = new Date(now); d.setHours(h, m, 0, 0);
+    if (d - now > 12 * 3600e3) d.setDate(d.getDate() - 1);   // rond middernacht
+    if (prev && d < prev) d.setDate(d.getDate() + 1);
+    prev = d;
+    return { date: d, mm: toMm(parseInt(v, 10)) };
+  });
+  if (!out.length) throw new Error("leeg");
+  return out;
+}
+// Open-Meteo geeft per kwartier de neerslag van het voorafgaande kwartier (mm). Wij maken er 5-minutenwaarden
+// in mm/u van, zodat de rest van de app hetzelfde blijft.
+async function loadOpenMeteoNowcast() {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${pos.lat.toFixed(3)}&longitude=${pos.lon.toFixed(3)}` +
+    `&minutely_15=precipitation&past_minutely_15=1&forecast_minutely_15=10&timeformat=unixtime`;
+  const j = await (await fetch(url, { cache: "no-store" })).json();
+  const T = j.minutely_15.time, P = j.minutely_15.precipitation;
+  const t0 = Math.floor(Date.now() / 300e3) * 300e3, out = [];
+  for (let k = 0; k <= 24; k++) {
+    const s = t0 + k * 300e3;
+    const i = T.findIndex(t => t * 1000 > s);
+    if (i === -1 || P[i] == null) break;
+    out.push({ date: new Date(s), mm: P[i] * 4 });
+  }
+  if (out.length < 13) throw new Error("te kort");
+  return out;
+}
+const nowcastCredit = () => nowcastSrc === "buienradar" ? "Buienradar, Open-Meteo"
+  : nowcastSrc === "radar" ? "radarverwachting · RainViewer, Open-Meteo" : "verwachting per kwartier · Open-Meteo";
 async function loadNowcast() {
   const id = ++nowcastLoadId;
-  const url = `https://gpsgadget.buienradar.nl/data/raintext?lat=${pos.lat.toFixed(2)}&lon=${pos.lon.toFixed(2)}`;
-  try {
-    const txt = await (await fetch(url, { cache: "no-store" })).text();
-    if (id !== nowcastLoadId) return;
-    const now = new Date();
-    let prev = null;
-    nowcast = txt.trim().split(/\r?\n/).map(line => {
-      const [v, t] = line.split("|");
-      const [h, m] = t.trim().split(":").map(Number);
-      const d = new Date(now); d.setHours(h, m, 0, 0);
-      if (d - now > 12 * 3600e3) d.setDate(d.getDate() - 1);   // rond middernacht
-      if (prev && d < prev) d.setDate(d.getDate() + 1);
-      prev = d;
-      return { date: d, mm: toMm(parseInt(v, 10)) };
-    });
-    if (!nowcast.length) throw new Error("leeg");
-  } catch (e) { if (id === nowcastLoadId) nowcast = []; }
+  let out = [], src = "buienradar";
+  try { out = await loadBuienradarNowcast(); }
+  catch (e) {
+    src = "openmeteo";
+    try { out = await loadOpenMeteoNowcast(); } catch (e2) { out = []; }
+  }
+  if (id !== nowcastLoadId) return;
+  // Buiten NL/BE: liever onze eigen radarverwachting dan het weermodel (zolang die van deze plek en vers is)
+  if (src !== "buienradar" && radarCast && radarCast.p === pos && radarCast.list[0].date > Date.now() - 10 * 60e3) {
+    out = radarCast.list; src = "radar";
+  }
+  nowcast = out; nowcastSrc = src;
 }
 
 // ---------- Data: Open-Meteo (actueel, 24 uur, 7 dagen) ----------
@@ -679,7 +714,7 @@ function render() {
   if (document.body.dataset.theme === "lucht") applyTheme();
   renderDays();
   if (!nowcast.length) {
-    setVerdict("Geen verwachting", "Buienradar heeft alleen data voor Nederland en België.", "");
+    setVerdict("Geen verwachting", "Er is nu geen regenverwachting voor deze plek. Probeer het straks opnieuw.", "");
     renderTrip(); renderStory();
     cursorT = null; updateStatsForTime(null);
     drawAll(); return;
@@ -1118,12 +1153,12 @@ function drawMain() {
   $("chartWrap").classList.toggle("clock", range === 2 && style === "clock");
   if (range === 2 && style === "clock") {
     mainGeom = drawClock($("chart"), nowcast, cursorT);
-    $("source").textContent = "Draai aan de klok voor details · Buienradar, Open-Meteo";
+    $("source").textContent = "Draai aan de klok voor details · " + nowcastCredit();
   } else if (range === 2) {
     const t0 = nowcast.length ? nowcast[0].date.getTime() : Date.now();
     const t1 = nowcast.length ? nowcast.at(-1).date.getTime() : t0 + 2 * 3600e3;
     mainGeom = drawRain($("chart"), nowcast, t0, t1, { levels: true, nowT: t0, marker: cursorT, bars5: style === "bars" });
-    $("source").textContent = "Sleep over de grafiek voor details · Buienradar, Open-Meteo";
+    $("source").textContent = "Sleep over de grafiek voor details · " + nowcastCredit();
   } else {
     const t0 = hourly.length ? hourly[0].date.getTime() : Date.now();
     mainGeom = drawRain($("chart"), hourly, t0, t0 + 24 * 3600e3, { levels: true, bars: true, nowT: Date.now(), marker: cursorT });
@@ -1172,7 +1207,19 @@ function scrub(e) {
 }
 $("prog").addEventListener("pointerdown", e => { $("prog").setPointerCapture(e.pointerId); scrub(e); });
 $("prog").addEventListener("pointermove", e => { if (e.buttons || e.pointerType === "touch") scrub(e); });
-document.querySelectorAll("#jumpSeg button").forEach(b => b.onclick = () => { stop(); showFrame(Math.min(nowIndex + +b.dataset.off, frames.length - 1)); });
+// Knoppen springen naar een tijd t.o.v. nu: vooruit bij Buienradar, terug bij RainViewer (alleen gemeten beelden)
+const frameAt = min => {
+  const t = frames[nowIndex].time + min * 60;
+  return frames.reduce((bi, f, i) => Math.abs(f.time - t) < Math.abs(frames[bi].time - t) ? i : bi, 0);
+};
+function setJumpButtons(future) {
+  const mins = future ? [0, 30, 60, 90] : [-90, -60, -30, 0];
+  document.querySelectorAll("#jumpSeg button").forEach((b, i) => {
+    b.dataset.min = mins[i];
+    b.textContent = mins[i] === 0 ? "nu" : mins[i] > 0 ? ["+30m", "+1u", "+1½u"][mins[i] / 30 - 1] : ["−30m", "−1u", "−1½u"][-mins[i] / 30 - 1];
+  });
+}
+document.querySelectorAll("#jumpSeg button").forEach(b => b.onclick = () => { if (!frames.length) return; stop(); showFrame(frameAt(+b.dataset.min)); });
 
 // ---------- Radaranimatie ----------
 // Buienradar: laatste meting + 2 uur vooruit, elke 5 minuten. Anders RainViewer (alleen verleden).
@@ -1207,8 +1254,9 @@ async function loadRainViewerFrames() {
     list: [...past, ...nc],
     nowIndex: past.length - 1,
     makeLayer: f => L.tileLayer(`${data.host}${f.path}/256/{z}/{x}/{y}/4/1_1.png`, {
-      opacity: 0, maxNativeZoom: 7, maxZoom: 18, zIndex: 10
-    })
+      opacity: 0, maxNativeZoom: 7, maxZoom: 18, zIndex: 10, className: "radar-img"
+    }),
+    rainviewer: data.host
   };
 }
 
@@ -1217,30 +1265,39 @@ function framesAreFresh(src) {
   return src.list.length && src.list.at(-1).time * 1000 > Date.now() - 20 * 60 * 1000;
 }
 
-let radarLoadId = 0;
+let radarLoadId = 0, radarSrc = null, radarFor = null;
+// Buienradar-beelden (met verwachting) als je plek ruim binnen hun kaartje valt, anders RainViewer (heel Europa)
+const inBuienradar = (lat, lon) => lat > BR_BOUNDS[0][0] + .6 && lat < BR_BOUNDS[1][0] - .6 && lon > BR_BOUNDS[0][1] + .8 && lon < BR_BOUNDS[1][1] - .8;
 async function loadRadar() {
   // Alleen de laatst gestarte laadactie mag de kaart bijwerken. Een oudere die nog liep
   // (bv. bevroren toen de app op de achtergrond ging) wordt genegeerd.
   const id = ++radarLoadId;
   let src = null;
-  try { src = await loadBuienradarFrames(); if (!framesAreFresh(src)) src = null; } catch (e) { src = null; }
+  radarFor = inBuienradar(pos.lat, pos.lon);
+  if (radarFor) {
+    try { src = await loadBuienradarFrames(); if (!framesAreFresh(src)) src = null; } catch (e) { src = null; }
+  }
   if (!src) {
     try { src = await loadRainViewerFrames(); if (!framesAreFresh(src)) src = null; } catch (e2) { src = null; }
   }
   if (id !== radarLoadId) return;
+  // Intussen naar een plek verhuisd die een andere bron nodig heeft? Dan opnieuw
+  if (inBuienradar(pos.lat, pos.lon) !== radarFor) return loadRadar();
   if (!src) { $("frameTime").textContent = "geen radar"; return; }
   layers.forEach(l => map.removeLayer(l));
-  frames = src.list;
+  frames = src.list.slice();   // eigen kopie: verwachtingsbeelden komen er later bij
   nowIndex = src.nowIndex;
   layers = frames.map(f => src.makeLayer(f).addTo(map));
+  radarSrc = src;
+  setJumpButtons(frames.length - 1 > nowIndex);
   showFrame(nowIndex);
   if (tab === "radarPanel") play();
   motion = null;
-  if (src.buienradar) {
-    try { motion = await estimateMotion(frames, nowIndex); } catch (e) { motion = null; }
-    if (id !== radarLoadId) return;
-  }
-  renderStory();
+  const p = pos;
+  try { motion = await estimateMotion(src, p); } catch (e) { motion = null; }
+  if (id !== radarLoadId || p !== pos) return;
+  if (src.rainviewer) await extrapolate(src, p, id);
+  else renderStory();
 }
 
 function showFrame(i) {
@@ -1254,8 +1311,7 @@ function showFrame(i) {
   $("frameTime").className = future ? "future" : "";
   // Voortgang, knoppen en de druppel op je plek volgen het getoonde beeld
   $("progBar").style.width = (frames.length > 1 ? frameIdx / (frames.length - 1) * 100 : 0) + "%";
-  const off = frameIdx - nowIndex;
-  document.querySelectorAll("#jumpSeg button").forEach(b => b.classList.toggle("active", +b.dataset.off === off));
+  document.querySelectorAll("#jumpSeg button").forEach(b => b.classList.toggle("active", frameAt(+b.dataset.min) === frameIdx));
   updateDrop(t);
 }
 function updateDrop(t) {
@@ -1297,44 +1353,86 @@ const toLatLng = (x, y) => {
   const my = mercY(BR_BOUNDS[1][0]) - y / BR_H * (mercY(BR_BOUNDS[1][0]) - mercY(BR_BOUNDS[0][0]));
   return [Math.atan(Math.sinh(my)) * 180 / Math.PI, BR_BOUNDS[0][1] + x / BR_W * (BR_BOUNDS[1][1] - BR_BOUNDS[0][1])];
 };
-function loadPixels(url, scale) {
-  return new Promise((res, rej) => {
+function imgPixels(urls, w, h, scale) {
+  // urls: [{url, x, y, w, h}] in beeldpixels; tekent alles op één doek en geeft de doorzichtigheid per pixel
+  const W = Math.round(w * scale), H = Math.round(h * scale);
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const ctx = c.getContext("2d");
+  return Promise.all(urls.map(u => new Promise((res, rej) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.onload = () => {
-      const w = Math.round(BR_W * scale), h = Math.round(BR_H * scale);
-      const c = document.createElement("canvas"); c.width = w; c.height = h;
-      const ctx = c.getContext("2d"); ctx.drawImage(img, 0, 0, w, h);
-      const d = ctx.getImageData(0, 0, w, h).data, a = new Float32Array(w * h);
-      for (let i = 0; i < a.length; i++) a[i] = d[i * 4 + 3] / 255;   // doorzichtigheid = hoeveel regen
-      res({ a, w, h });
-    };
+    img.onload = () => { ctx.drawImage(img, u.x * scale, u.y * scale, u.w * scale, u.h * scale); res(); };
     img.onerror = rej;
-    img.src = url;
+    img.src = u.url;
+  }))).then(() => {
+    const d = ctx.getImageData(0, 0, W, H).data, a = new Float32Array(W * H);
+    for (let i = 0; i < a.length; i++) a[i] = d[i * 4 + 3] / 255;   // doorzichtigheid = hoeveel regen
+    return { a, d, w: W, h: H };
   });
 }
-async function estimateMotion(frames, i0) {
-  const i1 = Math.min(i0 + 6, frames.length - 1);
-  if (i1 <= i0) return null;
-  const S = .25, [A, B] = await Promise.all([loadPixels(frames[i0].url, S), loadPixels(frames[i1].url, S)]);
-  const [hx, hy] = toPix(pos.lat, pos.lon).map(v => v * S);
-  const R = 40, M = 12, { w, h } = A;          // gebied ±40 px (±200 km) rond je plek, zoeken tot ±12 px
+// Beeldgeometrie: van plek naar pixel en terug, plus hoe je een beeld ophaalt
+function radarGeo(src, p) {
+  if (src.buienradar) return {
+    w: BR_W, h: BR_H, S: .25, R: 40, M: 12, toPix, toLatLng,
+    urls: f => [{ url: f.url, x: 0, y: 0, w: BR_W, h: BR_H }]
+  };
+  // RainViewer: 3×3 tegels op zoomniveau 6 rond je plek (±600 km)
+  const Z = 6, N = 256 * 2 ** Z;
+  const wx = lon => (lon + 180) / 360 * N, wy = lat => (1 - mercY(lat) / Math.PI) / 2 * N;
+  const tx = Math.floor(wx(p.lon) / 256) - 1, ty = Math.floor(wy(p.lat) / 256) - 1, ox = tx * 256, oy = ty * 256;
+  return {
+    w: 768, h: 768, S: .5, R: 60, M: 18,
+    toPix: (lat, lon) => [wx(lon) - ox, wy(lat) - oy],
+    toLatLng: (x, y) => [Math.atan(Math.sinh(Math.PI * (1 - 2 * (y + oy) / N))) * 180 / Math.PI, (x + ox) / N * 360 - 180],
+    urls: f => [0, 1, 2].flatMap(j => [0, 1, 2].map(i => ({
+      url: `${src.rainviewer}${f.path}/256/${Z}/${tx + i}/${ty + j}/4/1_1.png`, x: i * 256, y: j * 256, w: 256, h: 256 })))
+  };
+}
+// Vergelijkt het beeld van nu met dat van een half uur later (Buienradar) of eerder (RainViewer)
+async function estimateMotion(src, p) {
+  const list = src.list, i0 = src.nowIndex;
+  if (!list.length) return null;
+  const near = t => list.reduce((bi, f, i) => Math.abs(f.time - t) < Math.abs(list[bi].time - t) ? i : bi, 0);
+  let ia = i0, ib = near(list[i0].time + 1800);
+  if (ib === i0) { ia = near(list[i0].time - 1800); ib = i0; }
+  const dt = list[ib].time - list[ia].time;
+  if (ia === ib || dt < 900) return null;
+  const geo = radarGeo(src, p), S = geo.S;
+  const [A, B] = await Promise.all([imgPixels(geo.urls(list[ia]), geo.w, geo.h, S), imgPixels(geo.urls(list[ib]), geo.w, geo.h, S)]);
+  lastRadarPix = { p, geo, pix: ib === i0 ? B : A, time: list[i0].time };
+  const [hx, hy] = geo.toPix(p.lat, p.lon).map(v => v * S);
+  const { R, M } = geo, { w, h } = A;           // gebied ±R px (±200–300 km) rond je plek, zoeken tot ±M px
   const x0 = Math.max(M, Math.round(hx - R)), x1 = Math.min(w - M, Math.round(hx + R));
   const y0 = Math.max(M, Math.round(hy - R)), y1 = Math.min(h - M, Math.round(hy + R));
   let mass = 0;
   for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) mass += A.a[y * w + x];
   if (mass < 3) return null;                     // te weinig buien om iets over te zeggen
-  let best = { s: -1, dx: 0, dy: 0 };
-  for (let dy = -M; dy <= M; dy++) for (let dx = -M; dx <= M; dx++) {
+  const score = (dx, dy) => {
     let sc = 0;
     for (let y = y0; y < y1; y++) {
       const ra = y * w, rb = (y + dy) * w + dx;
       for (let x = x0; x < x1; x++) sc += A.a[ra + x] * B.a[rb + x];
     }
+    return sc;
+  };
+  let best = { s: -1, dx: 0, dy: 0 };
+  for (let dy = -M; dy <= M; dy++) for (let dx = -M; dx <= M; dx++) {
+    const sc = score(dx, dy);
     if (sc > best.s) best = { s: sc, dx, dy };
   }
   if (best.s <= 0) return null;
-  return { dx: best.dx / S, dy: best.dy / S, mass };   // beeldpixels per 30 minuten
+  // Fijner dan een hele pixel: parabool door de buren van de beste verschuiving
+  const sub = (m, p) => { const d = m - 2 * best.s + p; return d < 0 ? Math.max(-.5, Math.min(.5, (m - p) / (2 * d))) : 0; };
+  const fx = Math.abs(best.dx) < M ? sub(score(best.dx - 1, best.dy), score(best.dx + 1, best.dy)) : 0;
+  const fy = Math.abs(best.dy) < M ? sub(score(best.dx, best.dy - 1), score(best.dx, best.dy + 1)) : 0;
+  const k = 1800 / dt / S;                       // naar beeldpixels per 30 minuten
+  const nowPix = ib === i0 ? B : A;             // het beeld van nu, om te kijken waar het nu regent
+  return { dx: (best.dx + fx) * k, dy: (best.dy + fy) * k, mass, geo, nowPix };
+}
+// Verplaatsing in km per half uur (om te bepalen of de buien echt bewegen)
+function motionKm(m) {
+  const [hx, hy] = m.geo.toPix(pos.lat, pos.lon), a = m.geo.toLatLng(hx, hy), b = m.geo.toLatLng(hx + m.dx, hy + m.dy);
+  return Math.hypot((b[0] - a[0]) * 111, (b[1] - a[1]) * 111 * Math.cos(a[0] * Math.PI / 180));
 }
 const DIR_NL = ["noorden", "noordoosten", "oosten", "zuidoosten", "zuiden", "zuidwesten", "westen", "noordwesten"];
 // Richting waar de buien vandaan komen (tegengesteld aan de beweging)
@@ -1352,17 +1450,99 @@ const rainNow = mm => mm < .5 ? "Het miezert nu" : mm < 2.5 ? "Het regent nu" : 
 
 // Na het kiezen van een andere plek: beweging opnieuw bepalen rond die plek
 async function refreshMotion() {
-  if (!frames.length || !frames[0].url) return;
-  try { motion = await estimateMotion(frames, nowIndex); } catch (e) { motion = null; }
-  renderStory();
+  // Andere bron nodig (bv. van Utrecht naar Lyon)? Dan alles opnieuw laden
+  if (radarSrc && inBuienradar(pos.lat, pos.lon) !== radarFor) return loadRadar();
+  if (!radarSrc) return;
+  const p = pos, id = radarLoadId;
+  try { motion = await estimateMotion(radarSrc, p); } catch (e) { motion = null; }
+  if (p !== pos) return;
+  if (radarSrc.rainviewer) await extrapolate(radarSrc, p, id);
+  else renderStory();
+}
+
+// ---------- Eigen radarverwachting buiten Nederland en België ----------
+// RainViewer heeft alleen gemeten beelden. Wij schuiven het laatste beeld door in de richting waarin de buien
+// trekken (zoals Buienradar ook doet). Dat geeft (1) beelden tot 1½ uur vooruit op de kaart en
+// (2) de regen op jouw plek per 5 minuten, uit dezelfde radar in plaats van uit een weermodel.
+let lastRadarPix = null, radarCast = null;
+const RV_COLORS = [[146,136,113,100,5],[158,147,117,110,6],[170,158,121,120,7],[182,169,126,130,8],[194,180,130,140,9],[206,192,135,150,10],[210,196,139,160,11],[214,200,143,170,12],[218,204,147,180,13],[222,208,151,190,14],[136,221,238,255,15],[108,209,235,255,16],[81,197,232,255,17],[54,186,229,255,18],[27,174,226,255,19],[0,163,224,255,20],[0,154,213,255,21],[0,145,202,255,22],[0,136,191,255,23],[0,127,180,255,24],[0,119,170,255,25],[0,112,163,255,26],[0,105,156,255,27],[0,98,149,255,28],[0,91,142,255,29],[0,85,136,255,30],[0,81,128,255,31],[0,78,120,255,32],[0,74,112,255,33],[0,71,104,255,34],[255,238,0,255,35],[255,224,0,255,36],[255,210,0,255,37],[255,197,0,255,38],[255,183,0,255,39],[255,170,0,255,40],[255,159,0,255,41],[255,149,0,255,42],[255,139,0,255,43],[255,129,0,255,44],[255,68,0,255,45],[242,54,0,255,46],[230,40,0,255,47],[217,27,0,255,48],[205,13,0,255,49],[193,0,0,255,50],[168,0,0,255,51],[143,0,0,255,52],[118,0,0,255,53],[93,0,0,255,54],[255,170,255,255,55],[255,159,255,255,56],[255,149,255,255,57],[255,139,255,255,58],[255,129,255,255,59],[255,119,255,255,60],[255,108,255,255,61],[255,98,255,255,62],[255,88,255,255,63],[255,78,255,255,64],[255,255,255,255,65],[0,255,0,255,75],[195,255,255,191,5],[194,255,255,204,6],[193,255,255,216,7],[192,255,255,229,8],[191,255,255,242,9],[191,255,255,255,10],[184,248,255,255,11],[178,242,255,255,12],[171,235,255,255,13],[165,229,255,255,14],[159,223,255,255,15],[152,216,255,255,16],[146,210,255,255,17],[139,203,255,255,18],[133,197,255,255,19],[127,191,255,255,20],[120,184,255,255,21],[114,178,255,255,22],[107,171,255,255,23],[101,165,255,255,24],[95,159,255,255,25],[91,155,255,255,26],[88,152,255,255,27],[85,149,255,255,28],[82,146,255,255,29],[79,143,255,255,30],[75,139,255,255,31],[72,136,255,255,32],[69,133,255,255,33],[66,130,255,255,34],[63,127,255,255,35],[59,123,255,255,36],[56,120,255,255,37],[53,117,255,255,38],[50,114,255,255,39],[47,111,255,255,40],[43,107,255,255,41],[40,104,255,255,42],[37,101,255,255,43],[34,98,255,255,44],[31,95,255,255,45],[27,91,255,255,46],[24,88,255,255,47],[21,85,255,255,48],[18,82,255,255,49],[15,79,255,255,50],[12,75,255,255,51],[9,72,255,255,52],[6,69,255,255,53],[2,66,255,255,54],[0,63,255,255,55],[0,59,255,255,56],[0,56,255,255,57],[0,53,255,255,58],[0,50,255,255,59],[0,47,255,255,60],[0,43,255,255,61],[0,40,255,255,62],[0,37,255,255,63],[0,34,255,255,64],[0,31,255,255,65],[0,27,255,255,66],[0,24,255,255,67],[0,21,255,255,68],[0,18,255,255,69],[0,15,255,255,70],[0,12,255,255,71],[0,9,255,255,72],[0,6,255,255,73],[0,2,255,255,74],[0,0,255,255,75]];
+// Kleur van een pixel → dBZ (dichtstbijzijnde kleur in de tabel) → mm/u (Marshall-Palmer: Z = 200·R^1,6)
+const dbzCache = new Map();
+function pixelMm(d, i) {
+  const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
+  if (a < 60) return 0;
+  const key = (r >> 2) << 18 | (g >> 2) << 12 | (b >> 2) << 6 | a >> 2;
+  let dbz = dbzCache.get(key);
+  if (dbz === undefined) {
+    let best = 1e9; dbz = 0;
+    for (const c of RV_COLORS) {
+      const e = (c[0] - r) ** 2 + (c[1] - g) ** 2 + (c[2] - b) ** 2 + (c[3] - a) ** 2;
+      if (e < best) { best = e; dbz = c[4]; }
+    }
+    dbzCache.set(key, dbz);
+  }
+  return Math.pow(Math.pow(10, dbz / 10) / 200, 1 / 1.6);
+}
+// Gemiddelde regen in een vakje van 3×3 beeldpixels rond (x, y) (pixels op schaal S)
+function mmAt(P, x, y) {
+  let sum = 0, n = 0;
+  for (let yy = Math.round(y) - 1; yy <= Math.round(y) + 1; yy++) for (let xx = Math.round(x) - 1; xx <= Math.round(x) + 1; xx++) {
+    if (xx < 0 || yy < 0 || xx >= P.w || yy >= P.h) continue;
+    sum += pixelMm(P.d, (yy * P.w + xx) * 4); n++;
+  }
+  return n ? sum / n : 0;
+}
+async function extrapolate(src, p, id) {
+  const L0 = lastRadarPix;
+  if (!L0 || L0.p !== p) { renderStory(); return; }
+  const v = motion || { dx: 0, dy: 0 }, S = L0.geo.S;
+  const [hx, hy] = L0.geo.toPix(p.lat, p.lon);
+  // (2) regen op jouw plek: kijk waar de bui die over t minuten bij jou is nu op het beeld staat
+  const t0 = Math.floor(Date.now() / 300e3) * 300e3, list = [];
+  for (let k = 0; k <= 24; k++) {
+    const s = t0 + k * 300e3, mins = (s / 1000 - L0.time) / 60;
+    list.push({ date: new Date(s), mm: mmAt(L0.pix, (hx - v.dx * mins / 30) * S, (hy - v.dy * mins / 30) * S) });
+  }
+  radarCast = { p, list };
+  if (nowcastSrc !== "buienradar") { nowcast = list; nowcastSrc = "radar"; render(); }
+  // (1) verwachtingsbeelden op de kaart: het laatste beeld (fijner, zoomniveau 7) steeds een stukje verschoven
+  try {
+    const last = src.list[src.nowIndex], Z = 7, N = 256 * 2 ** Z;
+    const wx = lon => (lon + 180) / 360 * N, wy = lat => (1 - mercY(lat) / Math.PI) / 2 * N;
+    const tx = Math.floor(wx(p.lon) / 256) - 2, ty = Math.floor(wy(p.lat) / 256) - 2;
+    const urls = [];
+    for (let j = 0; j < 5; j++) for (let i = 0; i < 5; i++)
+      urls.push({ url: `${src.rainviewer}${last.path}/256/${Z}/${tx + i}/${ty + j}/4/1_1.png`, x: i * 256, y: j * 256, w: 256, h: 256 });
+    const c = document.createElement("canvas"); c.width = c.height = 1280;
+    const ctx = c.getContext("2d");
+    await Promise.all(urls.map(u => new Promise(res => {
+      const img = new Image(); img.crossOrigin = "anonymous";
+      img.onload = () => { ctx.drawImage(img, u.x, u.y); res(); }; img.onerror = res; img.src = u.url;
+    })));
+    if (id !== radarLoadId || p !== pos) return;
+    const url = c.toDataURL();
+    const ll = (x, y) => [Math.atan(Math.sinh(Math.PI * (1 - 2 * (y + ty * 256) / N))) * 180 / Math.PI, (x + tx * 256) / N * 360 - 180];
+    // verschuiving in pixels op zoom 7 = 2× die op zoom 6 (de bewegingsberekening)
+    const k7 = 2 ** (Z - 6);
+    // oude verwachtingsbeelden weg
+    while (frames.length > src.nowIndex + 1) { map.removeLayer(layers.pop()); frames.pop(); }
+    for (let m = 10; m <= 90; m += 10) {
+      const t = last.time + m * 60;
+      if (t * 1000 < Date.now() + 5 * 60e3) continue;
+      const ox = v.dx * k7 * (t - last.time) / 1800, oy = v.dy * k7 * (t - last.time) / 1800;
+      const layer = L.imageOverlay(url, [ll(ox, 1280 + oy), ll(1280 + ox, oy)], { opacity: 0, zIndex: 10, className: "radar-img" }).addTo(map);
+      frames.push({ time: t, future: true }); layers.push(layer);
+    }
+    setJumpButtons(frames.length - 1 > nowIndex);
+  } catch (e) { /* dan alleen gemeten beelden */ }
 }
 
 // Het verhaal onder de kaart, en het pad van de bui op de kaart
 function renderStory() {
   if (pathLayer) { map.removeLayer(pathLayer); pathLayer = null; }
-  const moving = motion && Math.hypot(motion.dx, motion.dy) >= 2;
+  const moving = motion && motionKm(motion) >= 4;
   if (!nowcast.length) {
-    $("storyText").innerHTML = moving ? `De buien trekken naar het ${towardWord(motion)}.` : "Geen regenverwachting voor deze plek (alleen Nederland en België).";
+    $("storyText").innerHTML = moving ? `De buien trekken naar het ${towardWord(motion)}.` : "Er is nu geen regenverwachting voor deze plek.";
     return;
   }
   const firstWet = nowcast.findIndex(r => r.mm >= WET);
@@ -1379,19 +1559,34 @@ function renderStory() {
       (moving ? `; hij trekt naar het ${towardWord(motion)}.` : ".");
   } else {
     const start = nowcast[firstWet].date;
-    txt = (moving ? `Er komt een bui uit het ${fromWord(motion)} aan. ` : "") +
+    // Alleen een pad als er op de radar nu ook echt een bui ligt waar het pad begint
+    const path = moving && rainAtPathStart(start);
+    txt = (path ? `Er komt een bui uit het ${fromWord(motion)} aan. ` : "") +
       `Om <i>${fmtTime(start)}</i> begint het ${rainVerb(peak)}` + (end ? `, om ${fmtTime(end)} is het weer droog.` : `, en dat houdt even aan.`);
-    if (moving) drawPath(start);
+    if (path) drawPath(start);
   }
   $("storyText").innerHTML = txt;
+}
+
+// Ligt er nu regen (op de radar) op de plek waar de bui volgens de beweging nu zou moeten zijn?
+function rainAtPathStart(arrival) {
+  const mins = (arrival - Date.now()) / 60000, P = motion.nowPix, S = motion.geo.S;
+  if (!P || mins < 5) return false;
+  const [hx, hy] = motion.geo.toPix(pos.lat, pos.lon);
+  const cx = (hx - motion.dx * mins / 30) * S, cy = (hy - motion.dy * mins / 30) * S;
+  const r = Math.max(2, Math.hypot(motion.dx, motion.dy) * S / 3);   // marge: ~10 minuten reistijd van de bui
+  for (let y = Math.floor(cy - r); y <= cy + r; y++) for (let x = Math.floor(cx - r); x <= cx + r; x++)
+    if (x >= 0 && y >= 0 && x < P.w && y < P.h && P.a[y * P.w + x] > .15) return true;
+  return false;
 }
 
 // Stippellijn van waar de bui nu is naar jou, met tijden per kwartier
 function drawPath(arrival) {
   const mins = (arrival - Date.now()) / 60000;
   if (mins < 5) return;
-  const [hx, hy] = toPix(pos.lat, pos.lon);
-  const at = m => toLatLng(hx - motion.dx * (mins - m) / 30, hy - motion.dy * (mins - m) / 30);   // plek van de bui op minuut m
+  const { toPix: tp, toLatLng: tl } = motion.geo;
+  const [hx, hy] = tp(pos.lat, pos.lon);
+  const at = m => tl(hx - motion.dx * (mins - m) / 30, hy - motion.dy * (mins - m) / 30);   // plek van de bui op minuut m
   const pts = [], labels = [];
   for (let m = 0; m < mins - 4; m += 15) {
     pts.push(at(m));
@@ -1621,14 +1816,18 @@ $("placeSearch").addEventListener("keydown", e => {
   if (e.key === "Enter") { e.preventDefault(); $("placeSearch").blur(); searchPlaces($("placeSearch").value.trim()); }
 });
 $("placeGo").onclick = () => searchPlaces($("placeSearch").value.trim());
+const EUROPE = "nl,be,lu,de,fr,gb,ie,es,pt,it,ch,at,dk,no,se,fi,is,pl,cz,sk,hu,si,hr,ba,rs,me,mk,al,gr,bg,ro,md,ua,by,lt,lv,ee,mt,cy,li,mc,sm,ad,va,gi,im,je,gg,fo,xk";
 async function searchPlaces(q) {
   if (q.length < 2) return;
   const seq = ++searchSeq;
   const box = $("placeResults");
   box.innerHTML = `<div class="s-empty">Zoeken…</div>`;
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=8&countrycodes=nl,be&accept-language=nl&q=${encodeURIComponent(q)}`;
-    const res = await (await fetch(url)).json();
+    const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=10&countrycodes=${EUROPE}&accept-language=nl&q=${encodeURIComponent(q)}`;
+    // Plaatsen in Nederland en België eerst (bij gelijke namen, zoals Bergen), daarna de rest van Europa
+    const res = (await (await fetch(url)).json())
+      .map((r, i) => ({ r, k: (["nl", "be"].includes((r.address || {}).country_code) ? 0 : 1) * 100 + i }))
+      .sort((a, b) => a.k - b.k).map(x => x.r).slice(0, 8);
     if (seq !== searchSeq) return;
     if (!res.length) { box.innerHTML = `<div class="s-empty">Niets gevonden voor „${q.replace(/[<>&]/g, "")}”.</div>`; return; }
     const card = document.createElement("div");
@@ -1637,7 +1836,7 @@ async function searchPlaces(q) {
     res.forEach(r => {
       const a = r.address || {};
       const title = r.name || a.city || a.town || a.village || r.display_name.split(",")[0];
-      const sub = [a.road && title !== a.road ? a.road : null, a.city || a.town || a.village || a.municipality, a.state]
+      const sub = [a.road && title !== a.road ? a.road : null, a.city || a.town || a.village || a.municipality, a.state, a.country_code !== "nl" ? a.country : null]
         .filter((v, i, arr) => v && v !== title && arr.indexOf(v) === i).join(", ");
       if (seen.has(title + "|" + sub)) return;   // dubbele (bijv. plaats en gemeente)
       seen.add(title + "|" + sub);

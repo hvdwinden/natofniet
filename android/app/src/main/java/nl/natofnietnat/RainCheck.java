@@ -177,8 +177,59 @@ public final class RainCheck {
 
     // ---------- Data ----------
 
-    /** Buienradar raintext: "waarde|HH:MM" per regel; mm/u = 10^((waarde-109)/32). */
+    /** Regen de komende 2 uur: Buienradar in Nederland en België, anders onze radarverwachting of Open-Meteo. */
     static List<Point> fetch(double lat, double lon) throws Exception {
+        try {
+            List<Point> b = fetchBuienradar(lat, lon);
+            if (!b.isEmpty()) return b;
+        } catch (Exception ignored) { /* buiten het gebied of geen antwoord */ }
+        // Elders in Europa: onze eigen radarverwachting (RainViewer), anders het weermodel van Open-Meteo
+        try {
+            List<Point> r = RadarCast.fetch(lat, lon);
+            if (r != null && !r.isEmpty()) return r;
+        } catch (Exception ignored) { /* geen radar */ }
+        return fetchOpenMeteo(lat, lon);
+    }
+
+    /**
+     * Open-Meteo: per kwartier de neerslag (mm) van het voorafgaande kwartier. Omgezet naar 5-minutenwaarden in mm/u,
+     * zodat de rest hetzelfde werkt als met Buienradar.
+     */
+    static List<Point> fetchOpenMeteo(double lat, double lon) throws Exception {
+        URL url = new URL(String.format(Locale.ROOT,
+                "https://api.open-meteo.com/v1/forecast?latitude=%.3f&longitude=%.3f"
+                        + "&minutely_15=precipitation&past_minutely_15=1&forecast_minutely_15=10&timeformat=unixtime", lat, lon));
+        HttpURLConnection con = (HttpURLConnection) url.openConnection();
+        con.setConnectTimeout(15_000);
+        con.setReadTimeout(15_000);
+        StringBuilder sb = new StringBuilder();
+        try (BufferedReader r = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
+            String line;
+            while ((line = r.readLine()) != null) sb.append(line);
+        } finally {
+            con.disconnect();
+        }
+        return parseOpenMeteo(sb.toString(), System.currentTimeMillis());
+    }
+
+    static List<Point> parseOpenMeteo(String json, long now) throws Exception {
+        org.json.JSONObject m = new org.json.JSONObject(json).getJSONObject("minutely_15");
+        org.json.JSONArray T = m.getJSONArray("time"), P = m.getJSONArray("precipitation");
+        java.text.SimpleDateFormat hm = new java.text.SimpleDateFormat("HH:mm", Locale.ROOT);
+        long t0 = now / 300_000L * 300_000L;
+        List<Point> out = new ArrayList<>();
+        for (int k = 0; k <= 24; k++) {
+            long s = t0 + k * 300_000L;
+            int i = -1;
+            for (int j = 0; j < T.length(); j++) if (T.getLong(j) * 1000 > s) { i = j; break; }
+            if (i == -1 || P.isNull(i)) break;
+            out.add(new Point(s, P.getDouble(i) * 4, hm.format(new java.util.Date(s))));
+        }
+        return out;
+    }
+
+    /** Buienradar raintext: "waarde|HH:MM" per regel; mm/u = 10^((waarde-109)/32). */
+    static List<Point> fetchBuienradar(double lat, double lon) throws Exception {
         URL url = new URL(String.format(Locale.ROOT,
                 "https://gpsgadget.buienradar.nl/data/raintext?lat=%.2f&lon=%.2f", lat, lon));
         HttpURLConnection con = (HttpURLConnection) url.openConnection();
