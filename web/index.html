@@ -1228,11 +1228,10 @@ const frameAt = min => {
   return frames.reduce((bi, f, i) => Math.abs(f.time - t) < Math.abs(frames[bi].time - t) ? i : bi, 0);
 };
 function setJumpButtons(future) {
-  const mins = future ? [0, 30, 60, 90] : [-90, -60, -30, 0];
-  document.querySelectorAll("#jumpSeg button").forEach((b, i) => {
-    b.dataset.min = mins[i];
-    b.textContent = mins[i] === 0 ? "nu" : mins[i] > 0 ? ["+30m", "+1u", "+1½u"][mins[i] / 30 - 1] : ["−30m", "−1u", "−1½u"][-mins[i] / 30 - 1];
-  });
+  // Zonder verwachting (alleen gemeten beelden van het laatste uur) springen de knoppen terug in de tijd
+  const mins = future ? [0, 30, 60, 90] : [-60, -40, -20, 0];
+  const label = { 0: "nu", 30: "+30m", 60: "+1u", 90: "+1½u", "-60": "−1u", "-40": "−40m", "-20": "−20m" };
+  document.querySelectorAll("#jumpSeg button").forEach((b, i) => { b.dataset.min = mins[i]; b.textContent = label[mins[i]]; });
 }
 document.querySelectorAll("#jumpSeg button").forEach(b => b.onclick = () => { if (!frames.length) return; stop(); showFrame(frameAt(+b.dataset.min)); });
 
@@ -1262,15 +1261,27 @@ async function loadBuienradarFrames() {
   };
 }
 
+// Geweigerd kaartstukje (te veel verzoeken): na een halve minuut nog twee keer proberen
+function retryTiles(layer) {
+  layer.on("tileerror", e => {
+    const n = +(e.tile.dataset.retry || 0);
+    if (n >= 2) return;
+    e.tile.dataset.retry = n + 1;
+    setTimeout(() => { e.tile.src = e.tile.src.split("?")[0] + "?r=" + (n + 1); }, 30000 * (n + 1));
+  });
+  return layer;
+}
 async function loadRainViewerFrames() {
   const data = await (await fetch("https://api.rainviewer.com/public/weather-maps.json", { cache: "no-store" })).json();
-  const past = data.radar.past || [], nc = data.radar.nowcast || [];
+  // RainViewer staat maximaal 500 kaartstukjes per minuut toe (per internetaansluiting). Daarom alleen het
+  // laatste uur aan gemeten beelden; elk beeld haalt bij schuiven en zoomen zijn eigen stukjes op.
+  const past = (data.radar.past || []).slice(-7), nc = data.radar.nowcast || [];
   return {
     list: [...past, ...nc],
     nowIndex: past.length - 1,
-    makeLayer: f => L.tileLayer(`${data.host}${f.path}/256/{z}/{x}/{y}/4/1_1.png`, {
+    makeLayer: f => retryTiles(L.tileLayer(`${data.host}${f.path}/256/{z}/{x}/{y}/4/1_1.png`, {
       opacity: 0, maxNativeZoom: 7, maxZoom: 18, zIndex: 10, className: "radar-img"
-    }),
+    })),
     rainviewer: data.host
   };
 }
@@ -1524,11 +1535,11 @@ async function extrapolate(src, p, id) {
   try {
     const last = src.list[src.nowIndex], Z = 7, N = 256 * 2 ** Z;
     const wx = lon => (lon + 180) / 360 * N, wy = lat => (1 - mercY(lat) / Math.PI) / 2 * N;
-    const tx = Math.floor(wx(p.lon) / 256) - 2, ty = Math.floor(wy(p.lat) / 256) - 2;
+    const tx = Math.floor(wx(p.lon) / 256) - 1, ty = Math.floor(wy(p.lat) / 256) - 1;
     const urls = [];
-    for (let j = 0; j < 5; j++) for (let i = 0; i < 5; i++)
+    for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++)
       urls.push({ url: `${src.rainviewer}${last.path}/256/${Z}/${tx + i}/${ty + j}/4/1_1.png`, x: i * 256, y: j * 256, w: 256, h: 256 });
-    const c = document.createElement("canvas"); c.width = c.height = 1280;
+    const c = document.createElement("canvas"); c.width = c.height = 768;
     const ctx = c.getContext("2d");
     await Promise.all(urls.map(u => new Promise(res => {
       const img = new Image(); img.crossOrigin = "anonymous";
@@ -1545,7 +1556,7 @@ async function extrapolate(src, p, id) {
       const t = last.time + m * 60;
       if (t * 1000 < Date.now() + 5 * 60e3) continue;
       const ox = v.dx * k7 * (t - last.time) / 1800, oy = v.dy * k7 * (t - last.time) / 1800;
-      const layer = L.imageOverlay(url, [ll(ox, 1280 + oy), ll(1280 + ox, oy)], { opacity: 0, zIndex: 10, className: "radar-img" }).addTo(map);
+      const layer = L.imageOverlay(url, [ll(ox, 768 + oy), ll(768 + ox, oy)], { opacity: 0, zIndex: 10, className: "radar-img" }).addTo(map);
       frames.push({ time: t, future: true }); layers.push(layer);
     }
     setJumpButtons(frames.length - 1 > nowIndex);
