@@ -1311,6 +1311,7 @@ async function loadRadar() {
   if (inBuienradar(pos.lat, pos.lon) !== radarFor) return loadRadar();
   if (!src) { $("frameTime").textContent = "geen radar"; return; }
   layers.forEach(l => map.removeLayer(l));
+  clearOutside();
   frames = src.list.slice();   // eigen kopie: verwachtingsbeelden komen er later bij
   nowIndex = src.nowIndex;
   layers = frames.map(f => src.makeLayer(f).addTo(map));
@@ -1323,7 +1324,95 @@ async function loadRadar() {
   try { motion = await estimateMotion(src, p); } catch (e) { motion = null; }
   if (id !== radarLoadId || p !== pos) return;
   if (src.rainviewer) await extrapolate(src, p, id);
-  else renderStory();
+  else { renderStory(); fillOutside(src, id); }
+}
+
+// ---------- Buiten het Buienradar-kaartje ----------
+// Het Nederlandse kaartje van Buienradar houdt op bij ca. 49,5–54,8° N en 0–10° O (hun Europese kaart loopt
+// uren achter). Daarbuiten tonen we het nieuwste RainViewer-beeld, per tijdstip meegeschoven met de buien,
+// met een gat waar het Buienradar-kaartje ligt. Zo loopt de regen bij uitzoomen gewoon door.
+let outside = null;   // { layer, image, url, time, v }
+function clearOutside() {
+  if (!outside) return;
+  map.removeLayer(outside.layer);
+  URL.revokeObjectURL(outside.url);
+  outside = null;
+}
+// Kleurverloop van Buienradar (mm/u → kleur), afgelezen uit hun beelden; alles met dezelfde doorzichtigheid
+const BR_RAMP = [[0.1, 237, 240, 255], [0.5, 207, 214, 253], [1, 177, 184, 253], [2, 129, 134, 252], [4, 85, 101, 246],
+  [7, 22, 40, 211], [12, 55, 36, 180], [18, 105, 22, 117], [25, 222, 22, 26], [60, 138, 0, 66]];
+function rampColor(mm) {
+  if (mm <= BR_RAMP[0][0]) return BR_RAMP[0].slice(1);
+  for (let i = 1; i < BR_RAMP.length; i++) if (mm <= BR_RAMP[i][0]) {
+    const [m0, ...c0] = BR_RAMP[i - 1], [m1, ...c1] = BR_RAMP[i];
+    const f = Math.log(mm / m0) / Math.log(m1 / m0);
+    return c0.map((v, k) => Math.round(v + (c1[k] - v) * f));
+  }
+  return BR_RAMP.at(-1).slice(1);
+}
+// RainViewer-pixels (eigen kleuren) omzetten naar de kleuren van Buienradar, zodat de overgang niet opvalt
+function recolorLikeBuienradar(ctx, w, h) {
+  const img = ctx.getImageData(0, 0, w, h), d = img.data, cache = new Map();
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] === 0) continue;
+    const key = d[i] << 24 ^ d[i + 1] << 16 ^ d[i + 2] << 8 ^ d[i + 3];
+    let c = cache.get(key);
+    if (!c) { const mm = pixelMm(d, i); c = mm < 0.1 ? [0, 0, 0, 0] : [...rampColor(mm), 204]; cache.set(key, c); }
+    d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = c[3];
+  }
+  ctx.putImageData(img, 0, 0);
+}
+async function fillOutside(src, id) {
+  try {
+    const data = await (await fetch("https://api.rainviewer.com/public/weather-maps.json", { cache: "no-store" })).json();
+    const last = (data.radar.past || []).at(-1);
+    if (!last || id !== radarLoadId) return;
+    // 5×5 tegels op zoomniveau 6 rond het midden van het kaartje (±1000 km)
+    const Z = 6, N = 256 * 2 ** Z, T = 5, W = 256 * T;
+    const wx = lon => (lon + 180) / 360 * N, wy = lat => (1 - mercY(lat) / Math.PI) / 2 * N;
+    const cLat = (BR_BOUNDS[0][0] + BR_BOUNDS[1][0]) / 2, cLon = (BR_BOUNDS[0][1] + BR_BOUNDS[1][1]) / 2;
+    const tx = Math.floor(wx(cLon) / 256) - 2, ty = Math.floor(wy(cLat) / 256) - 2, ox = tx * 256, oy = ty * 256;
+    const base = document.createElement("canvas"); base.width = base.height = W;
+    const bctx = base.getContext("2d");
+    const tiles = [];
+    for (let j = 0; j < T; j++) for (let i = 0; i < T; i++) tiles.push(new Promise(res => {
+      const img = new Image(); img.crossOrigin = "anonymous";
+      img.onload = () => { bctx.drawImage(img, i * 256, j * 256); res(); }; img.onerror = res;
+      img.src = `${data.host}${last.path}/256/${Z}/${tx + i}/${ty + j}/4/1_1.png`;
+    }));
+    await Promise.all(tiles);
+    if (id !== radarLoadId) return;
+    recolorLikeBuienradar(bctx, W, W);
+    const blob = await new Promise(res => base.toBlob(res));
+    if (!blob || id !== radarLoadId) return;
+    const url = URL.createObjectURL(blob);
+    const ll = (x, y) => [Math.atan(Math.sinh(Math.PI * (1 - 2 * (y + oy) / N))) * 180 / Math.PI, (x + ox) / N * 360 - 180];
+    // Gat voor het Buienradar-kaartje (in pixels van dit beeld), via een uitsparing in een SVG
+    const hx0 = wx(BR_BOUNDS[0][1]) - ox, hx1 = wx(BR_BOUNDS[1][1]) - ox, hy0 = wy(BR_BOUNDS[1][0]) - oy, hy1 = wy(BR_BOUNDS[0][0]) - oy;
+    const NS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", `0 0 ${W} ${W}`);
+    svg.setAttribute("preserveAspectRatio", "none");
+    const cid = "brHole" + id;
+    svg.innerHTML = `<defs><clipPath id="${cid}"><path clip-rule="evenodd" d="M0 0H${W}V${W}H0Z M${hx0} ${hy0}H${hx1}V${hy1}H${hx0}Z"/></clipPath></defs>` +
+      `<g clip-path="url(#${cid})"><image href="${url}" x="0" y="0" width="${W}" height="${W}"/></g>`;
+    // Beweging van de buien (Buienradar-pixels per 30 min) omrekenen naar pixels van dit beeld
+    const kx = (BR_BOUNDS[1][1] - BR_BOUNDS[0][1]) / BR_W * N / 360;
+    const ky = (mercY(BR_BOUNDS[1][0]) - mercY(BR_BOUNDS[0][0])) / BR_H * N / (2 * Math.PI);
+    const v = motion && motion.geo && motion.geo.w === BR_W ? { dx: motion.dx * kx, dy: motion.dy * ky } : { dx: 0, dy: 0 };
+    clearOutside();
+    const layer = L.svgOverlay(svg, [ll(0, W), ll(W, 0)], { opacity: 0, zIndex: 9, className: "radar-img", interactive: false }).addTo(map);
+    outside = { layer, image: svg.querySelector("image"), url, time: last.time, v };
+    showFrame(frameIdx);
+  } catch (e) { /* dan alleen het Buienradar-kaartje */ }
+}
+// Bij elk getoond tijdstip het aanvulbeeld een stukje met de buien meeschuiven
+function moveOutside(t) {
+  if (!outside) return;
+  const m = (t / 1000 - outside.time) / 1800;
+  outside.image.setAttribute("x", (outside.v.dx * m).toFixed(1));
+  outside.image.setAttribute("y", (outside.v.dy * m).toFixed(1));
+  outside.layer.setOpacity(0.9);
 }
 
 function showFrame(i) {
@@ -1331,6 +1420,7 @@ function showFrame(i) {
   frameIdx = (i + frames.length) % frames.length;
   layers.forEach((l, j) => l.setOpacity(j === frameIdx ? 0.9 : 0));
   const t = frames[frameIdx].time * 1000;
+  moveOutside(t);
   const future = frameIdx > nowIndex;
   const hhmm = fmtTime(new Date(t));
   $("frameTime").textContent = hhmm;
